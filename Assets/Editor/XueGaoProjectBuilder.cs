@@ -73,7 +73,7 @@ public static class XueGaoProjectBuilder
             Require(rootPrefab.GetComponentInChildren<MouthController>(true) != null, "GameRoot has MouthController");
             Require(rootPrefab.GetComponentInChildren<GameUI>(true) != null, "GameRoot has GameUI");
             Require(rootPrefab.GetComponentInChildren<JuicyFeedbacks>(true) != null, "GameRoot has JuicyFeedbacks");
-            Require(rootPrefab.GetComponentsInChildren<MMFeedbacks>(true).Length >= 3, "GameRoot has Feel MMFeedbacks");
+            Require(rootPrefab.GetComponentsInChildren<MMF_Player>(true).Length >= 3, "GameRoot has Feel MMF_Player components");
         }
         finally
         {
@@ -84,7 +84,10 @@ public static class XueGaoProjectBuilder
         Require(GameObject.Find("GameRoot") != null, "SampleScene has GameRoot");
         Require(GameObject.Find("EventSystem") != null, "SampleScene has EventSystem");
         Require(GameObject.Find("Main Camera") != null, "SampleScene has Main Camera");
-        EditorSceneManager.CloseScene(scene, true);
+        if (SceneManager.sceneCount > 1)
+        {
+            EditorSceneManager.CloseScene(scene, true);
+        }
 
         Debug.Log("XueGao validation passed.");
     }
@@ -282,7 +285,6 @@ public static class XueGaoProjectBuilder
         MouthController mouth = root.AddComponent<MouthController>();
         SetObject(eater, "iceCreamRenderer", iceRenderer);
         SetObject(eater, "stickRenderer", stickRenderer);
-        SetObject(eater, "bitePreviewRenderer", previewRenderer);
         SetObject(mouth, "preview", preview.transform);
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, Prefabs + "/IceCreamPlayArea.prefab");
@@ -387,9 +389,9 @@ public static class XueGaoProjectBuilder
 
         GameObject feedbackRoot = new GameObject("FeelFeedbacks");
         feedbackRoot.transform.SetParent(root.transform, false);
-        MMFeedbacks biteFeedbacks = feedbackRoot.AddComponent<MMFeedbacks>();
-        MMFeedbacks completeFeedbacks = feedbackRoot.AddComponent<MMFeedbacks>();
-        MMFeedbacks prizeFeedbacks = feedbackRoot.AddComponent<MMFeedbacks>();
+        MMF_Player biteFeedbacks = CreateFeedbackPlayer("BiteFeedbacks", feedbackRoot.transform);
+        MMF_Player completeFeedbacks = CreateFeedbackPlayer("CompleteFeedbacks", feedbackRoot.transform);
+        MMF_Player prizeFeedbacks = CreateFeedbackPlayer("PrizeFeedbacks", feedbackRoot.transform);
         JuicyFeedbacks juicy = feedbackRoot.AddComponent<JuicyFeedbacks>();
 
         IceCreamEater eater = playArea.GetComponent<IceCreamEater>();
@@ -416,6 +418,13 @@ public static class XueGaoProjectBuilder
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, Prefabs + "/GameRoot.prefab");
         Object.DestroyImmediate(root);
         return prefab;
+    }
+
+    private static MMF_Player CreateFeedbackPlayer(string name, Transform parent)
+    {
+        GameObject playerObject = new GameObject(name);
+        playerObject.transform.SetParent(parent, false);
+        return playerObject.AddComponent<MMF_Player>();
     }
 
     private static void BuildScene(GameObject rootPrefab)

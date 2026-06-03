@@ -16,6 +16,8 @@ MonoBehaviour:
   price: 250
   prizeMultiplier: 4
   fullSprite: {fileID: 5162460112750451156, guid: 4a78623634ae2e7498824c185b566e4b, type: 3}
+  sampleCount: 64
+  alphaThreshold: 0.1
   stickSprite: {fileID: -7907951331658488048, guid: fdf9bbe0d0c332c45b9fa314a0136692, type: 3}
   primaryColor: {r: 0.36, g: 0.18, b: 0.09, a: 1}
   secondaryColor: {r: 0.92, g: 0.5, b: 0.2, a: 1}

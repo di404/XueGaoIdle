@@ -21,6 +21,9 @@ namespace XueGao
         [SerializeField] private Color debugBoundsColor = new Color(1f, 1f, 0.2f, 0.55f);
         [SerializeField] private float smallPieceFadeDuration = 0.45f;
         [SerializeField] private float smallPieceFadeStartAlpha = 1f;
+        [SerializeField] private float smallPieceFallDistance = 0.65f;
+        [SerializeField] private float smallPieceHorizontalDrift = 0.12f;
+        [SerializeField] private float smallPieceTiltAngle = 14f;
 
         private Texture2D runtimeTexture;
         private Color[] pixels;
@@ -627,6 +630,12 @@ namespace XueGao
         {
             float duration = Mathf.Max(0.01f, smallPieceFadeDuration);
             Color startColor = detachedRenderer.color;
+            Transform detachedTransform = detachedRenderer.transform;
+            Vector3 startLocalPosition = detachedTransform.localPosition;
+            Quaternion startLocalRotation = detachedTransform.localRotation;
+            float driftDirection = UnityEngine.Random.value < 0.5f ? -1f : 1f;
+            Vector3 endLocalPosition = startLocalPosition + new Vector3(smallPieceHorizontalDrift * driftDirection, -smallPieceFallDistance, 0f);
+            Quaternion endLocalRotation = startLocalRotation * Quaternion.Euler(0f, 0f, smallPieceTiltAngle * driftDirection);
             for (float t = 0f; t < duration; t += Time.deltaTime)
             {
                 if (detachedRenderer == null)
@@ -635,8 +644,18 @@ namespace XueGao
                 }
 
                 float ratio = Mathf.Clamp01(t / duration);
+                float easedRatio = EaseOutCubic(ratio);
+                detachedTransform.localPosition = Vector3.LerpUnclamped(startLocalPosition, endLocalPosition, easedRatio);
+                detachedTransform.localRotation = Quaternion.LerpUnclamped(startLocalRotation, endLocalRotation, easedRatio);
                 detachedRenderer.color = WithAlpha(startColor, Mathf.Lerp(smallPieceFadeStartAlpha, 0f, ratio));
                 yield return null;
+            }
+
+            if (detachedRenderer != null)
+            {
+                detachedTransform.localPosition = endLocalPosition;
+                detachedTransform.localRotation = endLocalRotation;
+                detachedRenderer.color = WithAlpha(startColor, 0f);
             }
 
             MarkDetachedSamplesEaten(sampleIndices);
@@ -690,6 +709,12 @@ namespace XueGao
         {
             color.a = Mathf.Clamp01(alpha);
             return color;
+        }
+
+        private static float EaseOutCubic(float value)
+        {
+            value = 1f - Mathf.Clamp01(value);
+            return 1f - value * value * value;
         }
 
         private struct SamplePoint

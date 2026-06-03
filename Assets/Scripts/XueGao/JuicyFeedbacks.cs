@@ -6,9 +6,9 @@ namespace XueGao
 {
     public class JuicyFeedbacks : MonoBehaviour
     {
-        [SerializeField] private MMFeedbacks biteFeedbacks;
-        [SerializeField] private MMFeedbacks completeFeedbacks;
-        [SerializeField] private MMFeedbacks prizeFeedbacks;
+        [SerializeField] private MMF_Player biteFeedbacks;
+        [SerializeField] private MMF_Player completeFeedbacks;
+        [SerializeField] private MMF_Player prizeFeedbacks;
         [SerializeField] private Transform iceCreamTarget;
         [SerializeField] private Transform stickTarget;
         [SerializeField] private CanvasGroup prizePanel;
