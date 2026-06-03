@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -18,6 +19,8 @@ namespace XueGao
         [SerializeField] private Color debugUneatenSampleColor = new Color(0.15f, 0.95f, 1f, 0.95f);
         [SerializeField] private Color debugEatenSampleColor = new Color(1f, 0.35f, 0.35f, 0.95f);
         [SerializeField] private Color debugBoundsColor = new Color(1f, 1f, 0.2f, 0.55f);
+        [SerializeField] private float smallPieceFadeDuration = 0.45f;
+        [SerializeField] private float smallPieceFadeStartAlpha = 1f;
 
         private Texture2D runtimeTexture;
         private Color[] pixels;
@@ -25,6 +28,7 @@ namespace XueGao
         private bool[] eatenPixels;
         private readonly List<SamplePoint> samplePoints = new List<SamplePoint>();
         private readonly List<List<int>> sampleNeighbors = new List<List<int>>();
+        private readonly List<GameObject> detachedPieceObjects = new List<GameObject>();
         private int ediblePixelCount;
         private int eatenPixelCount;
         private bool completed;
@@ -45,6 +49,7 @@ namespace XueGao
 
         public void Load(IceCreamDefinition definition, IceCreamStickDefinition stickDefinition = null)
         {
+            ClearDetachedPieces();
             currentDefinition = definition;
             currentStickDefinition = stickDefinition;
             completed = false;
@@ -267,6 +272,7 @@ namespace XueGao
             }
 
             BuildSampleNeighbors();
+            BridgeInitialSampleIslands();
         }
 
         private Rect FindEdiblePixelBounds(float alphaThreshold)
@@ -338,6 +344,61 @@ namespace XueGao
             }
         }
 
+        private void BridgeInitialSampleIslands()
+        {
+            List<List<int>> islands = FindRemainingSampleIslands();
+            while (islands.Count > 1)
+            {
+                int fromSample = -1;
+                int toSample = -1;
+                float bestDistanceSquared = float.MaxValue;
+
+                List<int> connectedIsland = islands[0];
+                for (int islandIndex = 1; islandIndex < islands.Count; islandIndex++)
+                {
+                    List<int> candidateIsland = islands[islandIndex];
+                    for (int i = 0; i < connectedIsland.Count; i++)
+                    {
+                        int connectedSample = connectedIsland[i];
+                        for (int j = 0; j < candidateIsland.Count; j++)
+                        {
+                            int candidateSample = candidateIsland[j];
+                            float distanceSquared = (samplePoints[connectedSample].LocalPosition - samplePoints[candidateSample].LocalPosition).sqrMagnitude;
+                            if (distanceSquared >= bestDistanceSquared)
+                            {
+                                continue;
+                            }
+
+                            bestDistanceSquared = distanceSquared;
+                            fromSample = connectedSample;
+                            toSample = candidateSample;
+                        }
+                    }
+                }
+
+                if (fromSample < 0 || toSample < 0)
+                {
+                    return;
+                }
+
+                AddSampleNeighbor(fromSample, toSample);
+                islands = FindRemainingSampleIslands();
+            }
+        }
+
+        private void AddSampleNeighbor(int a, int b)
+        {
+            if (!sampleNeighbors[a].Contains(b))
+            {
+                sampleNeighbors[a].Add(b);
+            }
+
+            if (!sampleNeighbors[b].Contains(a))
+            {
+                sampleNeighbors[b].Add(a);
+            }
+        }
+
         private void MarkSamplesEaten(Vector3 biteLocalPosition, float radiusWorld)
         {
             float radiusLocal = radiusWorld / Mathf.Max(iceCreamRenderer.transform.lossyScale.x, 0.0001f);
@@ -347,7 +408,7 @@ namespace XueGao
             for (int i = 0; i < samplePoints.Count; i++)
             {
                 SamplePoint samplePoint = samplePoints[i];
-                if (samplePoint.IsEaten || (samplePoint.LocalPosition - bitePosition).sqrMagnitude > radiusSquared)
+                if (samplePoint.IsEaten || samplePoint.IsDetaching || (samplePoint.LocalPosition - bitePosition).sqrMagnitude > radiusSquared)
                 {
                     continue;
                 }
@@ -359,22 +420,289 @@ namespace XueGao
 
         private void EvaluateDisconnectedPieces()
         {
-            // Reserved for future island detection and small-piece fade out.
-            if (samplePoints.Count == 0 || sampleNeighbors.Count != samplePoints.Count)
+            if (completed || samplePoints.Count == 0 || sampleNeighbors.Count != samplePoints.Count)
             {
                 return;
             }
+
+            List<List<int>> islands = FindRemainingSampleIslands();
+            if (islands.Count <= 1)
+            {
+                return;
+            }
+
+            int keepIslandIndex = 0;
+            int keepIslandSize = islands[0].Count;
+            for (int i = 1; i < islands.Count; i++)
+            {
+                if (islands[i].Count > keepIslandSize)
+                {
+                    keepIslandIndex = i;
+                    keepIslandSize = islands[i].Count;
+                }
+            }
+
+            HashSet<int> samplesToDetach = new HashSet<int>();
+            for (int i = 0; i < islands.Count; i++)
+            {
+                if (i == keepIslandIndex)
+                {
+                    continue;
+                }
+
+                for (int j = 0; j < islands[i].Count; j++)
+                {
+                    samplesToDetach.Add(islands[i][j]);
+                }
+            }
+
+            DetachAndFadeSmallPiece(samplesToDetach);
+        }
+
+        private List<List<int>> FindRemainingSampleIslands()
+        {
+            List<List<int>> islands = new List<List<int>>();
+            bool[] visited = new bool[samplePoints.Count];
+            Queue<int> queue = new Queue<int>();
+
+            for (int i = 0; i < samplePoints.Count; i++)
+            {
+                if (visited[i] || !IsRemainingSample(i))
+                {
+                    continue;
+                }
+
+                List<int> island = new List<int>();
+                visited[i] = true;
+                queue.Enqueue(i);
+
+                while (queue.Count > 0)
+                {
+                    int current = queue.Dequeue();
+                    island.Add(current);
+
+                    List<int> neighbors = sampleNeighbors[current];
+                    for (int j = 0; j < neighbors.Count; j++)
+                    {
+                        int neighbor = neighbors[j];
+                        if (visited[neighbor] || !IsRemainingSample(neighbor))
+                        {
+                            continue;
+                        }
+
+                        visited[neighbor] = true;
+                        queue.Enqueue(neighbor);
+                    }
+                }
+
+                islands.Add(island);
+            }
+
+            return islands;
+        }
+
+        private bool IsRemainingSample(int index)
+        {
+            SamplePoint samplePoint = samplePoints[index];
+            return !samplePoint.IsEaten && !samplePoint.IsDetaching;
+        }
+
+        private void DetachAndFadeSmallPiece(HashSet<int> sampleIndices)
+        {
+            if (sampleIndices == null || sampleIndices.Count == 0 || runtimeTexture == null || pixels == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < samplePoints.Count; i++)
+            {
+                if (!sampleIndices.Contains(i))
+                {
+                    continue;
+                }
+
+                SamplePoint samplePoint = samplePoints[i];
+                samplePoint.IsDetaching = true;
+                samplePoints[i] = samplePoint;
+            }
+
+            Color[] detachedPixels = new Color[pixels.Length];
+            int detachedPixelCount = 0;
+            for (int y = 0; y < runtimeTexture.height; y++)
+            {
+                for (int x = 0; x < runtimeTexture.width; x++)
+                {
+                    int pixelIndex = y * runtimeTexture.width + x;
+                    if (!ediblePixels[pixelIndex] || eatenPixels[pixelIndex])
+                    {
+                        continue;
+                    }
+
+                    int nearestSampleIndex = FindNearestUneatenSampleIndex(x, y);
+                    if (nearestSampleIndex < 0 || !sampleIndices.Contains(nearestSampleIndex))
+                    {
+                        continue;
+                    }
+
+                    detachedPixels[pixelIndex] = pixels[pixelIndex];
+                    pixels[pixelIndex] = Color.clear;
+                    eatenPixels[pixelIndex] = true;
+                    detachedPixelCount++;
+                }
+            }
+
+            if (detachedPixelCount == 0)
+            {
+                MarkDetachedSamplesEaten(sampleIndices);
+                return;
+            }
+
+            Texture2D detachedTexture = new Texture2D(runtimeTexture.width, runtimeTexture.height, TextureFormat.RGBA32, false);
+            detachedTexture.filterMode = runtimeTexture.filterMode;
+            detachedTexture.SetPixels(detachedPixels);
+            detachedTexture.Apply();
+
+            Sprite sourceSprite = iceCreamRenderer.sprite;
+            Sprite detachedSprite = Sprite.Create(detachedTexture, new Rect(0f, 0f, detachedTexture.width, detachedTexture.height), sourceSprite.pivot / sourceSprite.rect.size, sourceSprite.pixelsPerUnit);
+            SpriteRenderer detachedRenderer = CreateDetachedPieceRenderer(detachedSprite);
+            StartCoroutine(FadeDetachedPiece(detachedRenderer, detachedTexture, detachedPixelCount, sampleIndices));
+        }
+
+        private int FindNearestUneatenSampleIndex(int pixelX, int pixelY)
+        {
+            if (iceCreamRenderer == null || iceCreamRenderer.sprite == null)
+            {
+                return -1;
+            }
+
+            Vector2 pivot = iceCreamRenderer.sprite.pivot;
+            float pixelsPerUnit = iceCreamRenderer.sprite.pixelsPerUnit;
+            Vector2 localPosition = new Vector2((pixelX - pivot.x) / pixelsPerUnit, (pixelY - pivot.y) / pixelsPerUnit);
+            int nearestIndex = -1;
+            float nearestDistanceSquared = float.MaxValue;
+
+            for (int i = 0; i < samplePoints.Count; i++)
+            {
+                SamplePoint samplePoint = samplePoints[i];
+                if (samplePoint.IsEaten)
+                {
+                    continue;
+                }
+
+                float distanceSquared = (samplePoint.LocalPosition - localPosition).sqrMagnitude;
+                if (distanceSquared >= nearestDistanceSquared)
+                {
+                    continue;
+                }
+
+                nearestDistanceSquared = distanceSquared;
+                nearestIndex = i;
+            }
+
+            return nearestIndex;
+        }
+
+        private SpriteRenderer CreateDetachedPieceRenderer(Sprite detachedSprite)
+        {
+            GameObject detachedObject = new GameObject("DetachedIceCreamPiece");
+            detachedObject.transform.SetParent(iceCreamRenderer.transform.parent, false);
+            detachedObject.transform.position = iceCreamRenderer.transform.position;
+            detachedObject.transform.rotation = iceCreamRenderer.transform.rotation;
+            detachedObject.transform.localScale = iceCreamRenderer.transform.localScale;
+
+            SpriteRenderer detachedRenderer = detachedObject.AddComponent<SpriteRenderer>();
+            detachedRenderer.sprite = detachedSprite;
+            detachedRenderer.color = WithAlpha(iceCreamRenderer.color, smallPieceFadeStartAlpha);
+            detachedRenderer.flipX = iceCreamRenderer.flipX;
+            detachedRenderer.flipY = iceCreamRenderer.flipY;
+            detachedRenderer.drawMode = iceCreamRenderer.drawMode;
+            detachedRenderer.sortingLayerID = iceCreamRenderer.sortingLayerID;
+            detachedRenderer.sortingOrder = iceCreamRenderer.sortingOrder + 1;
+            detachedRenderer.sharedMaterial = iceCreamRenderer.sharedMaterial;
+            detachedPieceObjects.Add(detachedObject);
+            return detachedRenderer;
+        }
+
+        private IEnumerator FadeDetachedPiece(SpriteRenderer detachedRenderer, Texture2D detachedTexture, int detachedPixelCount, HashSet<int> sampleIndices)
+        {
+            float duration = Mathf.Max(0.01f, smallPieceFadeDuration);
+            Color startColor = detachedRenderer.color;
+            for (float t = 0f; t < duration; t += Time.deltaTime)
+            {
+                if (detachedRenderer == null)
+                {
+                    yield break;
+                }
+
+                float ratio = Mathf.Clamp01(t / duration);
+                detachedRenderer.color = WithAlpha(startColor, Mathf.Lerp(smallPieceFadeStartAlpha, 0f, ratio));
+                yield return null;
+            }
+
+            MarkDetachedSamplesEaten(sampleIndices);
+            eatenPixelCount += detachedPixelCount;
+            ProgressChanged?.Invoke(Progress);
+
+            if (!completed && Progress >= completeThreshold)
+            {
+                completed = true;
+                Completed?.Invoke();
+            }
+
+            if (detachedRenderer != null)
+            {
+                detachedPieceObjects.Remove(detachedRenderer.gameObject);
+                Destroy(detachedRenderer.gameObject);
+            }
+
+            if (detachedTexture != null)
+            {
+                Destroy(detachedTexture);
+            }
+        }
+
+        private void MarkDetachedSamplesEaten(HashSet<int> sampleIndices)
+        {
+            foreach (int sampleIndex in sampleIndices)
+            {
+                SamplePoint samplePoint = samplePoints[sampleIndex];
+                samplePoint.IsDetaching = false;
+                samplePoint.IsEaten = true;
+                samplePoints[sampleIndex] = samplePoint;
+            }
+        }
+
+        private void ClearDetachedPieces()
+        {
+            StopAllCoroutines();
+            for (int i = detachedPieceObjects.Count - 1; i >= 0; i--)
+            {
+                if (detachedPieceObjects[i] != null)
+                {
+                    Destroy(detachedPieceObjects[i]);
+                }
+            }
+
+            detachedPieceObjects.Clear();
+        }
+
+        private static Color WithAlpha(Color color, float alpha)
+        {
+            color.a = Mathf.Clamp01(alpha);
+            return color;
         }
 
         private struct SamplePoint
         {
             public readonly Vector2 LocalPosition;
             public bool IsEaten;
+            public bool IsDetaching;
 
             public SamplePoint(Vector2 localPosition)
             {
                 LocalPosition = localPosition;
                 IsEaten = false;
+                IsDetaching = false;
             }
         }
     }
