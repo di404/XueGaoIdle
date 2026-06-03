@@ -47,6 +47,38 @@ namespace XueGao
             return CountBiteablePixels(worldPosition, radiusWorld, out _) > 0;
         }
 
+        public bool ContainsIceCreamSpritePoint(Vector3 worldPosition)
+        {
+            if (iceCreamRenderer == null || iceCreamRenderer.sprite == null || !iceCreamRenderer.gameObject.activeInHierarchy)
+            {
+                return false;
+            }
+
+            Vector3 localPosition = iceCreamRenderer.transform.InverseTransformPoint(worldPosition);
+            return iceCreamRenderer.sprite.bounds.Contains(localPosition);
+        }
+
+        public bool TryGetIceCreamSpriteWorldCorners(out Vector3 bottomLeft, out Vector3 bottomRight, out Vector3 topRight, out Vector3 topLeft)
+        {
+            bottomLeft = Vector3.zero;
+            bottomRight = Vector3.zero;
+            topRight = Vector3.zero;
+            topLeft = Vector3.zero;
+
+            if (iceCreamRenderer == null || iceCreamRenderer.sprite == null)
+            {
+                return false;
+            }
+
+            Bounds bounds = iceCreamRenderer.sprite.bounds;
+            Transform target = iceCreamRenderer.transform;
+            bottomLeft = target.TransformPoint(new Vector3(bounds.min.x, bounds.min.y, 0f));
+            bottomRight = target.TransformPoint(new Vector3(bounds.max.x, bounds.min.y, 0f));
+            topRight = target.TransformPoint(new Vector3(bounds.max.x, bounds.max.y, 0f));
+            topLeft = target.TransformPoint(new Vector3(bounds.min.x, bounds.max.y, 0f));
+            return true;
+        }
+
         private void Awake()
         {
             if (stickRenderer != null)

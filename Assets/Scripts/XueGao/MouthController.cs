@@ -16,8 +16,10 @@ namespace XueGao
         [SerializeField] private float baseRadius = 0.28f;
         [SerializeField] private float radiusPerLevel = 0.07f;
         [SerializeField] private bool debugDrawBiteRadius = true;
+        [SerializeField] private bool debugDrawIceCreamSpriteBounds = true;
         [SerializeField] private bool showDebugPreviewInGame;
         [SerializeField] private Color debugBiteRadiusColor = new Color(0f, 1f, 0.85f, 0.85f);
+        [SerializeField] private Color debugSpriteBoundsColor = new Color(1f, 0.85f, 0f, 0.9f);
 
         public int Level => level;
         public float BiteRadiusWorld => baseRadius + level * radiusPerLevel;
@@ -71,7 +73,7 @@ namespace XueGao
                 visualRoot.position = WithCurrentZ(visualRoot, pointerWorld);
             }
 
-            bool canShowMouth = eater != null && !IsPointerOverUI() && eater.CanBite(pointerWorld, BiteRadiusWorld);
+            bool canShowMouth = eater != null && !IsPointerOverUI() && eater.ContainsIceCreamSpritePoint(pointerWorld);
             SetMouthVisible(canShowMouth);
             return canShowMouth;
         }
@@ -94,12 +96,9 @@ namespace XueGao
 
         public void PlayBiteAnimation()
         {
-            if (biteAnimator == null)
-            {
-                return;
-            }
+            if (biteAnimator == null) throw new System.NullReferenceException(nameof(biteAnimator));
 
-            biteAnimator.Play(0, 0, 0f);
+            biteAnimator.SetTrigger("Bite");
             biteAnimator.Update(0f);
         }
 
@@ -210,13 +209,20 @@ namespace XueGao
 
         private void OnDrawGizmos()
         {
-            if (!debugDrawBiteRadius)
+            if (debugDrawBiteRadius)
             {
-                return;
+                Vector3 center = Application.isPlaying ? pointerWorld : (preview != null ? preview.position : transform.position);
+                DrawDebugCircle(center, BiteRadiusWorld, debugBiteRadiusColor);
             }
 
-            Vector3 center = Application.isPlaying ? pointerWorld : (preview != null ? preview.position : transform.position);
-            DrawDebugCircle(center, BiteRadiusWorld, debugBiteRadiusColor);
+            if (debugDrawIceCreamSpriteBounds && eater != null && eater.TryGetIceCreamSpriteWorldCorners(out Vector3 bottomLeft, out Vector3 bottomRight, out Vector3 topRight, out Vector3 topLeft))
+            {
+                Gizmos.color = debugSpriteBoundsColor;
+                Gizmos.DrawLine(bottomLeft, bottomRight);
+                Gizmos.DrawLine(bottomRight, topRight);
+                Gizmos.DrawLine(topRight, topLeft);
+                Gizmos.DrawLine(topLeft, bottomLeft);
+            }
         }
 
         private static void DrawDebugCircle(Vector3 center, float radius, Color color)

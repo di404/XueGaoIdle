@@ -79,8 +79,10 @@ MonoBehaviour:
   baseRadius: 0.28
   radiusPerLevel: 0.07
   debugDrawBiteRadius: 1
+  debugDrawIceCreamSpriteBounds: 1
   showDebugPreviewInGame: 0
   debugBiteRadiusColor: {r: 0, g: 1, b: 0.85, a: 0.85}
+  debugSpriteBoundsColor: {r: 1, g: 0.85, b: 0, a: 0.9}
 --- !u!1 &6345107193644864404
 GameObject:
   m_ObjectHideFlags: 0
