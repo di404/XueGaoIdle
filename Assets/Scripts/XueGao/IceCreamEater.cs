@@ -13,6 +13,11 @@ namespace XueGao
         [SerializeField] private SpriteRenderer iceCreamRenderer;
         [SerializeField] private SpriteRenderer stickRenderer;
         [SerializeField] private float completeThreshold = 0.8f;
+        [SerializeField] private bool debugDrawSamplePoints = true;
+        [SerializeField] private float debugSamplePointSize = 0.035f;
+        [SerializeField] private Color debugUneatenSampleColor = new Color(0.15f, 0.95f, 1f, 0.95f);
+        [SerializeField] private Color debugEatenSampleColor = new Color(1f, 0.35f, 0.35f, 0.95f);
+        [SerializeField] private Color debugBoundsColor = new Color(1f, 1f, 0.2f, 0.55f);
 
         private Texture2D runtimeTexture;
         private Color[] pixels;
@@ -54,9 +59,13 @@ namespace XueGao
 
             Sprite sourceSprite = definition.fullSprite;
             Texture2D sourceTexture = sourceSprite.texture;
-            runtimeTexture = new Texture2D(sourceTexture.width, sourceTexture.height, TextureFormat.RGBA32, false);
+            Rect textureRect = sourceSprite.textureRect;
+            int rectWidth = Mathf.Max(1, Mathf.RoundToInt(textureRect.width));
+            int rectHeight = Mathf.Max(1, Mathf.RoundToInt(textureRect.height));
+
+            runtimeTexture = new Texture2D(rectWidth, rectHeight, TextureFormat.RGBA32, false);
             runtimeTexture.filterMode = FilterMode.Point;
-            pixels = sourceTexture.GetPixels();
+            pixels = sourceTexture.GetPixels(Mathf.RoundToInt(textureRect.x), Mathf.RoundToInt(textureRect.y), rectWidth, rectHeight);
             runtimeTexture.SetPixels(pixels);
             runtimeTexture.Apply();
 
@@ -176,6 +185,30 @@ namespace XueGao
             if (stickRenderer != null)
             {
                 stickRenderer.gameObject.SetActive(false);
+            }
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!debugDrawSamplePoints || iceCreamRenderer == null)
+            {
+                return;
+            }
+
+            if (samplePoints.Count == 0)
+            {
+                return;
+            }
+
+            Transform target = iceCreamRenderer.transform;
+            float size = Mathf.Max(0.001f, debugSamplePointSize);
+
+            Gizmos.matrix = Matrix4x4.identity;
+            for (int i = 0; i < samplePoints.Count; i++)
+            {
+                SamplePoint samplePoint = samplePoints[i];
+                Gizmos.color = samplePoint.IsEaten ? debugEatenSampleColor : debugUneatenSampleColor;
+                Gizmos.DrawSphere(target.TransformPoint(samplePoint.LocalPosition), size);
             }
         }
 
