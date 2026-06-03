@@ -393,6 +393,7 @@ Transform:
   - {fileID: 8369868248769048746}
   - {fileID: 3843698513897368275}
   - {fileID: 4918579077190362152}
+  - {fileID: 4762793216418378274}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &5174471965001985963
@@ -413,10 +414,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 5afa8978155ecb04c897c78a4d395e53, type: 2}
   - {fileID: 11400000, guid: e66a406ac686ba4468cad8c8ad532cf7, type: 2}
   eater: {fileID: 5471032749071730190}
-  mouth: {fileID: 3770490707380795220}
+  mouth: {fileID: 6073073685033286596}
   lottery: {fileID: 8185932262118656279}
   ui: {fileID: 6797343125851854834}
   feedbacks: {fileID: 3226515434419304692}
+  defaultStickDefinition: {fileID: 11400000, guid: 68b5441d9c832cd4d81e4905c4ce98b0, type: 2}
   stickRevealDelay: 0.45
   prizeRevealDelay: 0.65
 --- !u!114 &8185932262118656279
@@ -446,6 +448,13 @@ MonoBehaviour:
   - 10
   - 4
   - 1
+  stickDefinitions:
+  - {fileID: 11400000, guid: 68b5441d9c832cd4d81e4905c4ce98b0, type: 2}
+  - {fileID: 11400000, guid: 9ccd831cb1c628947be362b866def398, type: 2}
+  - {fileID: 11400000, guid: 86853b5e8dab6ac40a81110e09ce265c, type: 2}
+  - {fileID: 11400000, guid: 214766473c36e004ebef2ceaed159718, type: 2}
+  - {fileID: 11400000, guid: 9e74ebe0268cffe4699372687bc8e5ca, type: 2}
+  - {fileID: 11400000, guid: 5cdc024235c39a841a07e229213dab8e, type: 2}
   noPrizeReductionPerLuckLevel: 1.5
 --- !u!1001 &4061528573507201698
 PrefabInstance:
@@ -504,17 +513,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 6a4a75c132f23b24fb739bd8ea8f8722, type: 3}
---- !u!114 &3770490707380795220 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 868644859369037302, guid: 6a4a75c132f23b24fb739bd8ea8f8722, type: 3}
-  m_PrefabInstance: {fileID: 4061528573507201698}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8c2019483bd612a4d81fbc8875439655, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::XueGao.MouthController
 --- !u!114 &5471032749071730190 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 8336288235631013036, guid: 6a4a75c132f23b24fb739bd8ea8f8722, type: 3}
@@ -541,6 +539,79 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4853214250533058453, guid: 6a4a75c132f23b24fb739bd8ea8f8722, type: 3}
   m_PrefabInstance: {fileID: 4061528573507201698}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &5782231879417865544
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 84399525438648843}
+    m_Modifications:
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7448577755558606432, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+      propertyPath: m_Name
+      value: MouthCursor
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+--- !u!4 &4762793216418378274 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1307814587078661994, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+  m_PrefabInstance: {fileID: 5782231879417865544}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &6073073685033286596 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 322421980350013068, guid: 4a350ee3023bd064498e69badf3e1f06, type: 3}
+  m_PrefabInstance: {fileID: 5782231879417865544}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c2019483bd612a4d81fbc8875439655, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::XueGao.MouthController
 --- !u!1001 &7473245183347163132
 PrefabInstance:
   m_ObjectHideFlags: 0

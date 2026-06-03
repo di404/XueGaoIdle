@@ -13,6 +13,7 @@ namespace XueGao
         [SerializeField] private LotterySystem lottery;
         [SerializeField] private GameUI ui;
         [SerializeField] private JuicyFeedbacks feedbacks;
+        [SerializeField] private IceCreamStickDefinition defaultStickDefinition;
         [SerializeField] private float stickRevealDelay = 0.45f;
         [SerializeField] private float prizeRevealDelay = 0.65f;
 
@@ -95,7 +96,7 @@ namespace XueGao
         private void LoadIceCream(int index)
         {
             currentIceCreamIndex = Mathf.Clamp(index, 0, iceCreams.Count - 1);
-            eater.Load(iceCreams[currentIceCreamIndex]);
+            eater.Load(iceCreams[currentIceCreamIndex], defaultStickDefinition);
         }
 
         private void OnProgressChanged(float progress)
@@ -124,12 +125,12 @@ namespace XueGao
             sticks++;
             RefreshUI();
 
-            eater.ShowStick();
+            PrizeResult result = lottery.Roll(iceCreams[currentIceCreamIndex].prizeMultiplier, luckLevel);
+            eater.RevealStick(result.StickDefinition);
             feedbacks.PlayComplete();
             ui.SetPrizeMessage("雪糕吃完了，正在翻雪糕棍...");
             yield return new WaitForSeconds(stickRevealDelay);
 
-            PrizeResult result = lottery.Roll(iceCreams[currentIceCreamIndex].prizeMultiplier, luckLevel);
             yield return new WaitForSeconds(prizeRevealDelay);
 
             money += result.FinalAmount;
