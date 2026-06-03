@@ -1,7 +1,8 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace XueGao
 {
@@ -11,255 +12,130 @@ namespace XueGao
         public event Action Completed;
         public event Action<Vector3> BiteApplied;
 
-        [SerializeField] private SpriteRenderer iceCreamRenderer;
-        [SerializeField] private SpriteRenderer stickRenderer;
         [SerializeField] private float completeThreshold = 0.8f;
-        [SerializeField] private bool debugDrawSamplePoints = true;
-        [SerializeField] private float debugSamplePointSize = 0.035f;
-        [SerializeField] private Color debugUneatenSampleColor = new Color(0.15f, 0.95f, 1f, 0.95f);
-        [SerializeField] private Color debugEatenSampleColor = new Color(1f, 0.35f, 0.35f, 0.95f);
-        [SerializeField] private Color debugBoundsColor = new Color(1f, 1f, 0.2f, 0.55f);
-        [SerializeField] private float smallPieceFadeDuration = 0.45f;
-        [SerializeField] private float smallPieceFadeStartAlpha = 1f;
-        [SerializeField] private float smallPieceFallDistance = 0.65f;
-        [SerializeField] private float smallPieceHorizontalDrift = 0.12f;
-        [SerializeField] private float smallPieceTiltAngle = 14f;
+        [SerializeField] private int focusedSortingOrder = 20;
+        [SerializeField] private MouthController mouth;
 
-        private Texture2D runtimeTexture;
-        private Color[] pixels;
-        private bool[] ediblePixels;
-        private bool[] eatenPixels;
-        private readonly List<SamplePoint> samplePoints = new List<SamplePoint>();
-        private readonly List<List<int>> sampleNeighbors = new List<List<int>>();
-        private readonly List<GameObject> detachedPieceObjects = new List<GameObject>();
-        private int ediblePixelCount;
-        private int eatenPixelCount;
+        private IceCream currentIceCream;
         private bool completed;
         private IceCreamDefinition currentDefinition;
         private IceCreamStickDefinition currentStickDefinition;
 
-        public float Progress => ediblePixelCount <= 0 ? 0f : eatenPixelCount / (float)ediblePixelCount;
+        public float Progress => currentIceCream != null ? currentIceCream.Progress : 0f;
         public IceCreamDefinition CurrentDefinition => currentDefinition;
         public IceCreamStickDefinition CurrentStickDefinition => currentStickDefinition;
-
-        public bool CanBite(Vector3 worldPosition, float radiusWorld)
-        {
-            return CountBiteablePixels(worldPosition, radiusWorld, out _) > 0;
-        }
-
-        public bool ContainsIceCreamSpritePoint(Vector3 worldPosition)
-        {
-            if (iceCreamRenderer == null || iceCreamRenderer.sprite == null || !iceCreamRenderer.gameObject.activeInHierarchy)
-            {
-                return false;
-            }
-
-            Vector3 localPosition = iceCreamRenderer.transform.InverseTransformPoint(worldPosition);
-            return iceCreamRenderer.sprite.bounds.Contains(localPosition);
-        }
-
-        public bool TryGetIceCreamSpriteWorldCorners(out Vector3 bottomLeft, out Vector3 bottomRight, out Vector3 topRight, out Vector3 topLeft)
-        {
-            bottomLeft = Vector3.zero;
-            bottomRight = Vector3.zero;
-            topRight = Vector3.zero;
-            topLeft = Vector3.zero;
-
-            if (iceCreamRenderer == null || iceCreamRenderer.sprite == null)
-            {
-                return false;
-            }
-
-            Bounds bounds = iceCreamRenderer.sprite.bounds;
-            Transform target = iceCreamRenderer.transform;
-            bottomLeft = target.TransformPoint(new Vector3(bounds.min.x, bounds.min.y, 0f));
-            bottomRight = target.TransformPoint(new Vector3(bounds.max.x, bounds.min.y, 0f));
-            topRight = target.TransformPoint(new Vector3(bounds.max.x, bounds.max.y, 0f));
-            topLeft = target.TransformPoint(new Vector3(bounds.min.x, bounds.max.y, 0f));
-            return true;
-        }
+        public bool InputEnabled { get; set; }
 
         private void Awake()
         {
-            if (stickRenderer != null)
+            if (mouth == null)
             {
-                stickRenderer.gameObject.SetActive(false);
+                mouth = GetComponent<MouthController>();
             }
         }
 
-        public void Load(IceCreamDefinition definition, IceCreamStickDefinition stickDefinition = null)
+        private void Update()
         {
-            ReleaseRuntimeTexture();
-            ClearDetachedPieces();
-            currentDefinition = definition;
-            currentStickDefinition = stickDefinition;
-            completed = false;
-            eatenPixelCount = 0;
-            samplePoints.Clear();
-            sampleNeighbors.Clear();
-
-            if (definition == null || definition.fullSprite == null)
+            if (!InputEnabled || completed || currentIceCream == null || !PointerPressedThisFrame())
             {
-                ediblePixelCount = 0;
-                pixels = null;
-                ediblePixels = null;
-                eatenPixels = null;
-                if (iceCreamRenderer != null)
-                {
-                    iceCreamRenderer.sprite = null;
-                    iceCreamRenderer.gameObject.SetActive(false);
-                }
-
-                if (stickRenderer != null)
-                {
-                    stickRenderer.gameObject.SetActive(false);
-                }
-
-                ProgressChanged?.Invoke(Progress);
                 return;
             }
 
-            Sprite sourceSprite = definition.fullSprite;
-            Texture2D sourceTexture = sourceSprite.texture;
-            Rect textureRect = sourceSprite.textureRect;
-            int rectWidth = Mathf.Max(1, Mathf.RoundToInt(textureRect.width));
-            int rectHeight = Mathf.Max(1, Mathf.RoundToInt(textureRect.height));
+            TryBiteFromPointer();
+        }
 
-            runtimeTexture = new Texture2D(rectWidth, rectHeight, TextureFormat.RGBA32, false);
-            runtimeTexture.filterMode = FilterMode.Point;
-            pixels = sourceTexture.GetPixels(Mathf.RoundToInt(textureRect.x), Mathf.RoundToInt(textureRect.y), rectWidth, rectHeight);
-            runtimeTexture.SetPixels(pixels);
-            runtimeTexture.Apply();
+        public void BeginEating(IceCream iceCream, IceCreamStickDefinition stickDefinition = null)
+        {
+            DetachCurrentIceCream();
+            currentIceCream = iceCream;
+            currentDefinition = iceCream != null ? iceCream.CurrentDefinition : null;
+            currentStickDefinition = stickDefinition;
+            completed = false;
 
-            float alphaThreshold = Mathf.Max(0f, definition.alphaThreshold);
-            ediblePixels = new bool[pixels.Length];
-            eatenPixels = new bool[pixels.Length];
-            ediblePixelCount = 0;
-            for (int i = 0; i < pixels.Length; i++)
+            if (currentIceCream == null)
             {
-                ediblePixels[i] = pixels[i].a > alphaThreshold;
-                if (ediblePixels[i])
-                {
-                    ediblePixelCount++;
-                }
+                ProgressChanged?.Invoke(0f);
+                return;
             }
 
-            Sprite runtimeSprite = Sprite.Create(runtimeTexture, new Rect(0f, 0f, runtimeTexture.width, runtimeTexture.height), sourceSprite.pivot / sourceSprite.rect.size, sourceSprite.pixelsPerUnit);
-            iceCreamRenderer.sprite = runtimeSprite;
-            iceCreamRenderer.gameObject.SetActive(true);
-            GenerateSamplePoints(sourceSprite, alphaThreshold);
-
-            if (stickRenderer != null)
-            {
-                ApplyStickDefinition(stickDefinition);
-                stickRenderer.gameObject.SetActive(false);
-            }
-
+            currentIceCream.ProgressChanged += OnIceCreamProgressChanged;
+            currentIceCream.transform.SetParent(transform, false);
+            currentIceCream.transform.localPosition = Vector3.zero;
+            currentIceCream.transform.localRotation = Quaternion.identity;
+            currentIceCream.transform.localScale = Vector3.one;
+            currentIceCream.gameObject.SetActive(true);
+            currentIceCream.SetAlpha(1f);
+            currentIceCream.SetSortingOrder(focusedSortingOrder);
+            currentIceCream.InteractionEnabled = false;
+            currentIceCream.DragEnabled = false;
+            currentIceCream.LoadForEating(stickDefinition);
             ProgressChanged?.Invoke(Progress);
         }
 
         public void Clear()
         {
-            Load(null, null);
+            EndEating();
+        }
+
+        public void EndEating()
+        {
+            if (currentIceCream != null)
+            {
+                currentIceCream.ProgressChanged -= OnIceCreamProgressChanged;
+            }
+
+            currentIceCream = null;
+            currentDefinition = null;
+            currentStickDefinition = null;
+            completed = false;
+            ProgressChanged?.Invoke(0f);
+        }
+
+        public void SetMouth(MouthController newMouth)
+        {
+            mouth = newMouth;
         }
 
         public bool TryBite(Vector3 worldPosition, float radiusWorld)
         {
-            if (CountBiteablePixels(worldPosition, radiusWorld, out Vector3 local) == 0)
+            if (completed || currentIceCream == null)
             {
                 return false;
             }
 
-            float pixelsPerUnit = iceCreamRenderer.sprite.pixelsPerUnit;
-            int centerX = Mathf.RoundToInt(local.x * pixelsPerUnit + runtimeTexture.width * 0.5f);
-            int centerY = Mathf.RoundToInt(local.y * pixelsPerUnit + runtimeTexture.height * 0.5f);
-            int radius = Mathf.CeilToInt(radiusWorld * pixelsPerUnit);
-            int radiusSquared = radius * radius;
-            int changed = 0;
-
-            for (int y = Mathf.Max(0, centerY - radius); y <= Mathf.Min(runtimeTexture.height - 1, centerY + radius); y++)
-            {
-                for (int x = Mathf.Max(0, centerX - radius); x <= Mathf.Min(runtimeTexture.width - 1, centerX + radius); x++)
-                {
-                    int dx = x - centerX;
-                    int dy = y - centerY;
-                    if (dx * dx + dy * dy > radiusSquared)
-                    {
-                        continue;
-                    }
-
-                    int index = y * runtimeTexture.width + x;
-                    if (!ediblePixels[index] || eatenPixels[index])
-                    {
-                        continue;
-                    }
-
-                    eatenPixels[index] = true;
-                    pixels[index] = Color.clear;
-                    eatenPixelCount++;
-                    changed++;
-                }
-            }
-
-            if (changed == 0)
+            IceCream.BiteResult result = currentIceCream.TryBite(worldPosition, radiusWorld);
+            if (!result.WasApplied)
             {
                 return false;
             }
 
-            MarkSamplesEaten(local, radiusWorld);
-            EvaluateDisconnectedPieces();
-            runtimeTexture.SetPixels(pixels);
-            runtimeTexture.Apply();
             BiteApplied?.Invoke(worldPosition);
-            ProgressChanged?.Invoke(Progress);
-
-            if (Progress >= completeThreshold)
-            {
-                completed = true;
-                Completed?.Invoke();
-            }
-
+            OnIceCreamProgressChanged(result.Progress);
             return true;
         }
 
-        private int CountBiteablePixels(Vector3 worldPosition, float radiusWorld, out Vector3 localPosition)
+        public bool CanBite(Vector3 worldPosition, float radiusWorld)
         {
-            localPosition = Vector3.zero;
-            if (completed || runtimeTexture == null || iceCreamRenderer == null || iceCreamRenderer.sprite == null || radiusWorld <= 0f)
+            return !completed && currentIceCream != null && currentIceCream.CanBite(worldPosition, radiusWorld);
+        }
+
+        public bool ContainsIceCreamSpritePoint(Vector3 worldPosition)
+        {
+            return currentIceCream != null && currentIceCream.ContainsSpritePoint(worldPosition);
+        }
+
+        public bool TryGetIceCreamSpriteWorldCorners(out Vector3 bottomLeft, out Vector3 bottomRight, out Vector3 topRight, out Vector3 topLeft)
+        {
+            if (currentIceCream != null)
             {
-                return 0;
+                return currentIceCream.TryGetSpriteWorldCorners(out bottomLeft, out bottomRight, out topRight, out topLeft);
             }
 
-            localPosition = iceCreamRenderer.transform.InverseTransformPoint(worldPosition);
-            float pixelsPerUnit = iceCreamRenderer.sprite.pixelsPerUnit;
-            int centerX = Mathf.RoundToInt(localPosition.x * pixelsPerUnit + runtimeTexture.width * 0.5f);
-            int centerY = Mathf.RoundToInt(localPosition.y * pixelsPerUnit + runtimeTexture.height * 0.5f);
-            int radius = Mathf.CeilToInt(radiusWorld * pixelsPerUnit);
-            int radiusSquared = radius * radius;
-            int count = 0;
-
-            for (int y = Mathf.Max(0, centerY - radius); y <= Mathf.Min(runtimeTexture.height - 1, centerY + radius); y++)
-            {
-                for (int x = Mathf.Max(0, centerX - radius); x <= Mathf.Min(runtimeTexture.width - 1, centerX + radius); x++)
-                {
-                    int dx = x - centerX;
-                    int dy = y - centerY;
-                    if (dx * dx + dy * dy > radiusSquared)
-                    {
-                        continue;
-                    }
-
-                    int index = y * runtimeTexture.width + x;
-                    if (!ediblePixels[index] || eatenPixels[index])
-                    {
-                        continue;
-                    }
-
-                    count++;
-                }
-            }
-
-            return count;
+            bottomLeft = Vector3.zero;
+            bottomRight = Vector3.zero;
+            topRight = Vector3.zero;
+            topLeft = Vector3.zero;
+            return false;
         }
 
         public void RevealStick(IceCreamStickDefinition stickDefinition = null)
@@ -269,16 +145,7 @@ namespace XueGao
                 currentStickDefinition = stickDefinition;
             }
 
-            if (iceCreamRenderer != null)
-            {
-                iceCreamRenderer.gameObject.SetActive(false);
-            }
-
-            if (stickRenderer != null)
-            {
-                ApplyStickDefinition(currentStickDefinition);
-                stickRenderer.gameObject.SetActive(true);
-            }
+            currentIceCream?.RevealStick(currentStickDefinition);
         }
 
         public void ShowStick()
@@ -288,560 +155,60 @@ namespace XueGao
 
         public void HideStick()
         {
-            if (stickRenderer != null)
-            {
-                stickRenderer.gameObject.SetActive(false);
-            }
+            currentIceCream?.HideStick();
         }
 
-        private void OnDrawGizmosSelected()
+        private void TryBiteFromPointer()
         {
-            if (!debugDrawSamplePoints || iceCreamRenderer == null)
+            if (mouth == null)
             {
                 return;
             }
 
-            if (samplePoints.Count == 0)
+            if (mouth.RefreshCursorState() && TryBite(mouth.GetPointerWorld(), mouth.BiteRadiusWorld))
             {
-                return;
+                mouth.PlayBiteAnimation();
             }
-
-            Transform target = iceCreamRenderer.transform;
-            float size = Mathf.Max(0.001f, debugSamplePointSize);
-
-            Gizmos.matrix = Matrix4x4.identity;
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                SamplePoint samplePoint = samplePoints[i];
-                Gizmos.color = samplePoint.IsEaten ? debugEatenSampleColor : debugUneatenSampleColor;
-                Gizmos.DrawSphere(target.TransformPoint(samplePoint.LocalPosition), size);
-            }
-        }
-
-        private void ApplyStickDefinition(IceCreamStickDefinition stickDefinition)
-        {
-            if (stickRenderer == null)
-            {
-                return;
-            }
-
-            Sprite fallbackSprite = currentDefinition != null ? currentDefinition.stickSprite : null;
-            stickRenderer.sprite = stickDefinition != null && stickDefinition.stickSprite != null ? stickDefinition.stickSprite : fallbackSprite;
-            stickRenderer.color = stickDefinition != null ? stickDefinition.tint : Color.white;
-        }
-
-        private void GenerateSamplePoints(Sprite sourceSprite, float alphaThreshold)
-        {
-            if (runtimeTexture == null || sourceSprite == null || pixels == null)
-            {
-                return;
-            }
-
-            int targetCount = Mathf.Max(0, currentDefinition != null ? currentDefinition.sampleCount : 0);
-            if (targetCount == 0)
-            {
-                return;
-            }
-
-            Rect bounds = FindEdiblePixelBounds(alphaThreshold);
-            if (bounds.width <= 0f || bounds.height <= 0f)
-            {
-                return;
-            }
-
-            int gridSize = Mathf.CeilToInt(Mathf.Sqrt(targetCount));
-            float stepX = bounds.width / gridSize;
-            float stepY = bounds.height / gridSize;
-            float pixelsPerUnit = sourceSprite.pixelsPerUnit;
-            Vector2 pivot = sourceSprite.pivot;
-
-            for (int y = 0; y < gridSize && samplePoints.Count < targetCount; y++)
-            {
-                for (int x = 0; x < gridSize && samplePoints.Count < targetCount; x++)
-                {
-                    int pixelX = Mathf.Clamp(Mathf.RoundToInt(bounds.xMin + (x + 0.5f) * stepX), 0, runtimeTexture.width - 1);
-                    int pixelY = Mathf.Clamp(Mathf.RoundToInt(bounds.yMin + (y + 0.5f) * stepY), 0, runtimeTexture.height - 1);
-                    int index = pixelY * runtimeTexture.width + pixelX;
-                    if (pixels[index].a <= alphaThreshold)
-                    {
-                        continue;
-                    }
-
-                    Vector2 localPosition = new Vector2((pixelX - pivot.x) / pixelsPerUnit, (pixelY - pivot.y) / pixelsPerUnit);
-                    samplePoints.Add(new SamplePoint(localPosition));
-                }
-            }
-
-            BuildSampleNeighbors();
-            BridgeInitialSampleIslands();
-        }
-
-        private Rect FindEdiblePixelBounds(float alphaThreshold)
-        {
-            int minX = runtimeTexture.width;
-            int minY = runtimeTexture.height;
-            int maxX = -1;
-            int maxY = -1;
-
-            for (int y = 0; y < runtimeTexture.height; y++)
-            {
-                for (int x = 0; x < runtimeTexture.width; x++)
-                {
-                    if (pixels[y * runtimeTexture.width + x].a <= alphaThreshold)
-                    {
-                        continue;
-                    }
-
-                    minX = Mathf.Min(minX, x);
-                    minY = Mathf.Min(minY, y);
-                    maxX = Mathf.Max(maxX, x);
-                    maxY = Mathf.Max(maxY, y);
-                }
-            }
-
-            return maxX < minX || maxY < minY ? Rect.zero : Rect.MinMaxRect(minX, minY, maxX + 1, maxY + 1);
-        }
-
-        private void BuildSampleNeighbors()
-        {
-            sampleNeighbors.Clear();
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                sampleNeighbors.Add(new List<int>());
-            }
-
-            if (samplePoints.Count <= 1)
-            {
-                return;
-            }
-
-            float nearestDistance = float.MaxValue;
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                for (int j = i + 1; j < samplePoints.Count; j++)
-                {
-                    float distance = Vector2.Distance(samplePoints[i].LocalPosition, samplePoints[j].LocalPosition);
-                    if (distance > 0f)
-                    {
-                        nearestDistance = Mathf.Min(nearestDistance, distance);
-                    }
-                }
-            }
-
-            float neighborDistance = nearestDistance * 1.55f;
-            float neighborDistanceSquared = neighborDistance * neighborDistance;
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                for (int j = i + 1; j < samplePoints.Count; j++)
-                {
-                    if ((samplePoints[i].LocalPosition - samplePoints[j].LocalPosition).sqrMagnitude > neighborDistanceSquared)
-                    {
-                        continue;
-                    }
-
-                    sampleNeighbors[i].Add(j);
-                    sampleNeighbors[j].Add(i);
-                }
-            }
-        }
-
-        private void BridgeInitialSampleIslands()
-        {
-            List<List<int>> islands = FindRemainingSampleIslands();
-            while (islands.Count > 1)
-            {
-                int fromSample = -1;
-                int toSample = -1;
-                float bestDistanceSquared = float.MaxValue;
-
-                List<int> connectedIsland = islands[0];
-                for (int islandIndex = 1; islandIndex < islands.Count; islandIndex++)
-                {
-                    List<int> candidateIsland = islands[islandIndex];
-                    for (int i = 0; i < connectedIsland.Count; i++)
-                    {
-                        int connectedSample = connectedIsland[i];
-                        for (int j = 0; j < candidateIsland.Count; j++)
-                        {
-                            int candidateSample = candidateIsland[j];
-                            float distanceSquared = (samplePoints[connectedSample].LocalPosition - samplePoints[candidateSample].LocalPosition).sqrMagnitude;
-                            if (distanceSquared >= bestDistanceSquared)
-                            {
-                                continue;
-                            }
-
-                            bestDistanceSquared = distanceSquared;
-                            fromSample = connectedSample;
-                            toSample = candidateSample;
-                        }
-                    }
-                }
-
-                if (fromSample < 0 || toSample < 0)
-                {
-                    return;
-                }
-
-                AddSampleNeighbor(fromSample, toSample);
-                islands = FindRemainingSampleIslands();
-            }
-        }
-
-        private void AddSampleNeighbor(int a, int b)
-        {
-            if (!sampleNeighbors[a].Contains(b))
-            {
-                sampleNeighbors[a].Add(b);
-            }
-
-            if (!sampleNeighbors[b].Contains(a))
-            {
-                sampleNeighbors[b].Add(a);
-            }
-        }
-
-        private void MarkSamplesEaten(Vector3 biteLocalPosition, float radiusWorld)
-        {
-            float radiusLocal = radiusWorld / Mathf.Max(iceCreamRenderer.transform.lossyScale.x, 0.0001f);
-            float radiusSquared = radiusLocal * radiusLocal;
-            Vector2 bitePosition = new Vector2(biteLocalPosition.x, biteLocalPosition.y);
-
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                SamplePoint samplePoint = samplePoints[i];
-                if (samplePoint.IsEaten || samplePoint.IsDetaching || (samplePoint.LocalPosition - bitePosition).sqrMagnitude > radiusSquared)
-                {
-                    continue;
-                }
-
-                samplePoint.IsEaten = true;
-                samplePoints[i] = samplePoint;
-            }
-        }
-
-        private void EvaluateDisconnectedPieces()
-        {
-            if (completed || samplePoints.Count == 0 || sampleNeighbors.Count != samplePoints.Count)
-            {
-                return;
-            }
-
-            List<List<int>> islands = FindRemainingSampleIslands();
-            if (islands.Count <= 1)
-            {
-                return;
-            }
-
-            int keepIslandIndex = 0;
-            int keepIslandSize = islands[0].Count;
-            for (int i = 1; i < islands.Count; i++)
-            {
-                if (islands[i].Count > keepIslandSize)
-                {
-                    keepIslandIndex = i;
-                    keepIslandSize = islands[i].Count;
-                }
-            }
-
-            HashSet<int> samplesToDetach = new HashSet<int>();
-            for (int i = 0; i < islands.Count; i++)
-            {
-                if (i == keepIslandIndex)
-                {
-                    continue;
-                }
-
-                for (int j = 0; j < islands[i].Count; j++)
-                {
-                    samplesToDetach.Add(islands[i][j]);
-                }
-            }
-
-            DetachAndFadeSmallPiece(samplesToDetach);
-        }
-
-        private List<List<int>> FindRemainingSampleIslands()
-        {
-            List<List<int>> islands = new List<List<int>>();
-            bool[] visited = new bool[samplePoints.Count];
-            Queue<int> queue = new Queue<int>();
-
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                if (visited[i] || !IsRemainingSample(i))
-                {
-                    continue;
-                }
-
-                List<int> island = new List<int>();
-                visited[i] = true;
-                queue.Enqueue(i);
-
-                while (queue.Count > 0)
-                {
-                    int current = queue.Dequeue();
-                    island.Add(current);
-
-                    List<int> neighbors = sampleNeighbors[current];
-                    for (int j = 0; j < neighbors.Count; j++)
-                    {
-                        int neighbor = neighbors[j];
-                        if (visited[neighbor] || !IsRemainingSample(neighbor))
-                        {
-                            continue;
-                        }
-
-                        visited[neighbor] = true;
-                        queue.Enqueue(neighbor);
-                    }
-                }
-
-                islands.Add(island);
-            }
-
-            return islands;
-        }
-
-        private bool IsRemainingSample(int index)
-        {
-            SamplePoint samplePoint = samplePoints[index];
-            return !samplePoint.IsEaten && !samplePoint.IsDetaching;
-        }
-
-        private void DetachAndFadeSmallPiece(HashSet<int> sampleIndices)
-        {
-            if (sampleIndices == null || sampleIndices.Count == 0 || runtimeTexture == null || pixels == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                if (!sampleIndices.Contains(i))
-                {
-                    continue;
-                }
-
-                SamplePoint samplePoint = samplePoints[i];
-                samplePoint.IsDetaching = true;
-                samplePoints[i] = samplePoint;
-            }
-
-            Color[] detachedPixels = new Color[pixels.Length];
-            int detachedPixelCount = 0;
-            for (int y = 0; y < runtimeTexture.height; y++)
-            {
-                for (int x = 0; x < runtimeTexture.width; x++)
-                {
-                    int pixelIndex = y * runtimeTexture.width + x;
-                    if (!ediblePixels[pixelIndex] || eatenPixels[pixelIndex])
-                    {
-                        continue;
-                    }
-
-                    int nearestSampleIndex = FindNearestUneatenSampleIndex(x, y);
-                    if (nearestSampleIndex < 0 || !sampleIndices.Contains(nearestSampleIndex))
-                    {
-                        continue;
-                    }
-
-                    detachedPixels[pixelIndex] = pixels[pixelIndex];
-                    pixels[pixelIndex] = Color.clear;
-                    eatenPixels[pixelIndex] = true;
-                    detachedPixelCount++;
-                }
-            }
-
-            if (detachedPixelCount == 0)
-            {
-                MarkDetachedSamplesEaten(sampleIndices);
-                return;
-            }
-
-            Texture2D detachedTexture = new Texture2D(runtimeTexture.width, runtimeTexture.height, TextureFormat.RGBA32, false);
-            detachedTexture.filterMode = runtimeTexture.filterMode;
-            detachedTexture.SetPixels(detachedPixels);
-            detachedTexture.Apply();
-
-            Sprite sourceSprite = iceCreamRenderer.sprite;
-            Sprite detachedSprite = Sprite.Create(detachedTexture, new Rect(0f, 0f, detachedTexture.width, detachedTexture.height), sourceSprite.pivot / sourceSprite.rect.size, sourceSprite.pixelsPerUnit);
-            SpriteRenderer detachedRenderer = CreateDetachedPieceRenderer(detachedSprite);
-            StartCoroutine(FadeDetachedPiece(detachedRenderer, detachedTexture, detachedPixelCount, sampleIndices));
-        }
-
-        private int FindNearestUneatenSampleIndex(int pixelX, int pixelY)
-        {
-            if (iceCreamRenderer == null || iceCreamRenderer.sprite == null)
-            {
-                return -1;
-            }
-
-            Vector2 pivot = iceCreamRenderer.sprite.pivot;
-            float pixelsPerUnit = iceCreamRenderer.sprite.pixelsPerUnit;
-            Vector2 localPosition = new Vector2((pixelX - pivot.x) / pixelsPerUnit, (pixelY - pivot.y) / pixelsPerUnit);
-            int nearestIndex = -1;
-            float nearestDistanceSquared = float.MaxValue;
-
-            for (int i = 0; i < samplePoints.Count; i++)
-            {
-                SamplePoint samplePoint = samplePoints[i];
-                if (samplePoint.IsEaten)
-                {
-                    continue;
-                }
-
-                float distanceSquared = (samplePoint.LocalPosition - localPosition).sqrMagnitude;
-                if (distanceSquared >= nearestDistanceSquared)
-                {
-                    continue;
-                }
-
-                nearestDistanceSquared = distanceSquared;
-                nearestIndex = i;
-            }
-
-            return nearestIndex;
-        }
-
-        private SpriteRenderer CreateDetachedPieceRenderer(Sprite detachedSprite)
-        {
-            GameObject detachedObject = new GameObject("DetachedIceCreamPiece");
-            detachedObject.transform.SetParent(iceCreamRenderer.transform.parent, false);
-            detachedObject.transform.position = iceCreamRenderer.transform.position;
-            detachedObject.transform.rotation = iceCreamRenderer.transform.rotation;
-            detachedObject.transform.localScale = iceCreamRenderer.transform.localScale;
-
-            SpriteRenderer detachedRenderer = detachedObject.AddComponent<SpriteRenderer>();
-            detachedRenderer.sprite = detachedSprite;
-            detachedRenderer.color = WithAlpha(iceCreamRenderer.color, smallPieceFadeStartAlpha);
-            detachedRenderer.flipX = iceCreamRenderer.flipX;
-            detachedRenderer.flipY = iceCreamRenderer.flipY;
-            detachedRenderer.drawMode = iceCreamRenderer.drawMode;
-            detachedRenderer.sortingLayerID = iceCreamRenderer.sortingLayerID;
-            detachedRenderer.sortingOrder = iceCreamRenderer.sortingOrder + 1;
-            detachedRenderer.sharedMaterial = iceCreamRenderer.sharedMaterial;
-            detachedPieceObjects.Add(detachedObject);
-            return detachedRenderer;
-        }
-
-        private IEnumerator FadeDetachedPiece(SpriteRenderer detachedRenderer, Texture2D detachedTexture, int detachedPixelCount, HashSet<int> sampleIndices)
-        {
-            float duration = Mathf.Max(0.01f, smallPieceFadeDuration);
-            Color startColor = detachedRenderer.color;
-            Transform detachedTransform = detachedRenderer.transform;
-            Vector3 startLocalPosition = detachedTransform.localPosition;
-            Quaternion startLocalRotation = detachedTransform.localRotation;
-            float driftDirection = UnityEngine.Random.value < 0.5f ? -1f : 1f;
-            Vector3 endLocalPosition = startLocalPosition + new Vector3(smallPieceHorizontalDrift * driftDirection, -smallPieceFallDistance, 0f);
-            Quaternion endLocalRotation = startLocalRotation * Quaternion.Euler(0f, 0f, smallPieceTiltAngle * driftDirection);
-            for (float t = 0f; t < duration; t += Time.deltaTime)
-            {
-                if (detachedRenderer == null)
-                {
-                    yield break;
-                }
-
-                float ratio = Mathf.Clamp01(t / duration);
-                float easedRatio = EaseOutCubic(ratio);
-                detachedTransform.localPosition = Vector3.LerpUnclamped(startLocalPosition, endLocalPosition, easedRatio);
-                detachedTransform.localRotation = Quaternion.LerpUnclamped(startLocalRotation, endLocalRotation, easedRatio);
-                detachedRenderer.color = WithAlpha(startColor, Mathf.Lerp(smallPieceFadeStartAlpha, 0f, ratio));
-                yield return null;
-            }
-
-            if (detachedRenderer != null)
-            {
-                detachedTransform.localPosition = endLocalPosition;
-                detachedTransform.localRotation = endLocalRotation;
-                detachedRenderer.color = WithAlpha(startColor, 0f);
-            }
-
-            MarkDetachedSamplesEaten(sampleIndices);
-            eatenPixelCount += detachedPixelCount;
-            ProgressChanged?.Invoke(Progress);
-
-            if (!completed && Progress >= completeThreshold)
-            {
-                completed = true;
-                Completed?.Invoke();
-            }
-
-            if (detachedRenderer != null)
-            {
-                detachedPieceObjects.Remove(detachedRenderer.gameObject);
-                Destroy(detachedRenderer.gameObject);
-            }
-
-            if (detachedTexture != null)
-            {
-                Destroy(detachedTexture);
-            }
-        }
-
-        private void MarkDetachedSamplesEaten(HashSet<int> sampleIndices)
-        {
-            foreach (int sampleIndex in sampleIndices)
-            {
-                SamplePoint samplePoint = samplePoints[sampleIndex];
-                samplePoint.IsDetaching = false;
-                samplePoint.IsEaten = true;
-                samplePoints[sampleIndex] = samplePoint;
-            }
-        }
-
-        private void ClearDetachedPieces()
-        {
-            StopAllCoroutines();
-            for (int i = detachedPieceObjects.Count - 1; i >= 0; i--)
-            {
-                if (detachedPieceObjects[i] != null)
-                {
-                    Destroy(detachedPieceObjects[i]);
-                }
-            }
-
-            detachedPieceObjects.Clear();
         }
 
         private void OnDestroy()
         {
-            ReleaseRuntimeTexture();
-            ClearDetachedPieces();
+            DetachCurrentIceCream();
         }
 
-        private void ReleaseRuntimeTexture()
+        private void DetachCurrentIceCream()
         {
-            if (runtimeTexture != null)
+            if (currentIceCream != null)
             {
-                Destroy(runtimeTexture);
-                runtimeTexture = null;
+                currentIceCream.ProgressChanged -= OnIceCreamProgressChanged;
             }
         }
 
-        private static Color WithAlpha(Color color, float alpha)
+        private void OnIceCreamProgressChanged(float progress)
         {
-            color.a = Mathf.Clamp01(alpha);
-            return color;
-        }
+            ProgressChanged?.Invoke(progress);
 
-        private static float EaseOutCubic(float value)
-        {
-            value = 1f - Mathf.Clamp01(value);
-            return 1f - value * value * value;
-        }
-
-        private struct SamplePoint
-        {
-            public readonly Vector2 LocalPosition;
-            public bool IsEaten;
-            public bool IsDetaching;
-
-            public SamplePoint(Vector2 localPosition)
+            if (!completed && progress >= completeThreshold)
             {
-                LocalPosition = localPosition;
-                IsEaten = false;
-                IsDetaching = false;
+                completed = true;
+                Completed?.Invoke();
             }
+        }
+
+        private static bool PointerPressedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            if (Touchscreen.current != null)
+            {
+                return Touchscreen.current.primaryTouch.press.wasPressedThisFrame;
+            }
+#endif
+            return false;
         }
     }
 }

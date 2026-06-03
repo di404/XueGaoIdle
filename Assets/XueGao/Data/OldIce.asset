@@ -18,6 +18,6 @@ MonoBehaviour:
   fullSprite: {fileID: -7896951710282197807, guid: 2c8acf4d632bbdf488e2dbf8ac090693, type: 3}
   sampleCount: 64
   alphaThreshold: 0.1
-  stickSprite: {fileID: -5047819084834435329, guid: 2c8acf4d632bbdf488e2dbf8ac090693, type: 3}
+  stickSprite: {fileID: -7907951331658488048, guid: fdf9bbe0d0c332c45b9fa314a0136692, type: 3}
   primaryColor: {r: 0.55, g: 0.9, b: 1, a: 1}
   secondaryColor: {r: 0.18, g: 0.58, b: 0.95, a: 1}
