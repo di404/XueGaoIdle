@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace XueGao
 {
@@ -49,6 +48,7 @@ namespace XueGao
             eater.ProgressChanged += OnProgressChanged;
             eater.BiteApplied += OnBiteApplied;
             eater.Completed += OnIceCreamCompleted;
+            mouth.SetEater(eater);
             mouth.SetLevel(mouthLevel);
             LoadIceCream(0);
             RefreshUI();
@@ -58,9 +58,9 @@ namespace XueGao
         {
             if (!resolvingCompletion && PointerPressedThisFrame())
             {
-                if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                if (mouth.RefreshCursorState() && eater.TryBite(mouth.GetPointerWorld(), mouth.BiteRadiusWorld))
                 {
-                    eater.TryBite(mouth.GetPointerWorld(), mouth.BiteRadiusWorld);
+                    mouth.PlayBiteAnimation();
                 }
             }
 

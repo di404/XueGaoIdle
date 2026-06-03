@@ -42,6 +42,11 @@ namespace XueGao
         public IceCreamDefinition CurrentDefinition => currentDefinition;
         public IceCreamStickDefinition CurrentStickDefinition => currentStickDefinition;
 
+        public bool CanBite(Vector3 worldPosition, float radiusWorld)
+        {
+            return CountBiteablePixels(worldPosition, radiusWorld, out _) > 0;
+        }
+
         private void Awake()
         {
             if (stickRenderer != null)
@@ -106,12 +111,11 @@ namespace XueGao
 
         public bool TryBite(Vector3 worldPosition, float radiusWorld)
         {
-            if (completed || runtimeTexture == null || iceCreamRenderer.sprite == null)
+            if (CountBiteablePixels(worldPosition, radiusWorld, out Vector3 local) == 0)
             {
                 return false;
             }
 
-            Vector3 local = iceCreamRenderer.transform.InverseTransformPoint(worldPosition);
             float pixelsPerUnit = iceCreamRenderer.sprite.pixelsPerUnit;
             int centerX = Mathf.RoundToInt(local.x * pixelsPerUnit + runtimeTexture.width * 0.5f);
             int centerY = Mathf.RoundToInt(local.y * pixelsPerUnit + runtimeTexture.height * 0.5f);
@@ -162,6 +166,46 @@ namespace XueGao
             }
 
             return true;
+        }
+
+        private int CountBiteablePixels(Vector3 worldPosition, float radiusWorld, out Vector3 localPosition)
+        {
+            localPosition = Vector3.zero;
+            if (completed || runtimeTexture == null || iceCreamRenderer == null || iceCreamRenderer.sprite == null || radiusWorld <= 0f)
+            {
+                return 0;
+            }
+
+            localPosition = iceCreamRenderer.transform.InverseTransformPoint(worldPosition);
+            float pixelsPerUnit = iceCreamRenderer.sprite.pixelsPerUnit;
+            int centerX = Mathf.RoundToInt(localPosition.x * pixelsPerUnit + runtimeTexture.width * 0.5f);
+            int centerY = Mathf.RoundToInt(localPosition.y * pixelsPerUnit + runtimeTexture.height * 0.5f);
+            int radius = Mathf.CeilToInt(radiusWorld * pixelsPerUnit);
+            int radiusSquared = radius * radius;
+            int count = 0;
+
+            for (int y = Mathf.Max(0, centerY - radius); y <= Mathf.Min(runtimeTexture.height - 1, centerY + radius); y++)
+            {
+                for (int x = Mathf.Max(0, centerX - radius); x <= Mathf.Min(runtimeTexture.width - 1, centerX + radius); x++)
+                {
+                    int dx = x - centerX;
+                    int dy = y - centerY;
+                    if (dx * dx + dy * dy > radiusSquared)
+                    {
+                        continue;
+                    }
+
+                    int index = y * runtimeTexture.width + x;
+                    if (!ediblePixels[index] || eatenPixels[index])
+                    {
+                        continue;
+                    }
+
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         public void RevealStick(IceCreamStickDefinition stickDefinition = null)
