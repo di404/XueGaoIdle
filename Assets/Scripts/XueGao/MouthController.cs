@@ -96,7 +96,10 @@ namespace XueGao
 
         public void PlayBiteAnimation()
         {
-            if (biteAnimator == null) throw new System.NullReferenceException(nameof(biteAnimator));
+            if (biteAnimator == null)
+            {
+                return;
+            }
 
             biteAnimator.SetTrigger("Bite");
             biteAnimator.Update(0f);

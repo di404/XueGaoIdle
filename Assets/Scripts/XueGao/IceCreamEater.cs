@@ -89,6 +89,7 @@ namespace XueGao
 
         public void Load(IceCreamDefinition definition, IceCreamStickDefinition stickDefinition = null)
         {
+            ReleaseRuntimeTexture();
             ClearDetachedPieces();
             currentDefinition = definition;
             currentStickDefinition = stickDefinition;
@@ -99,6 +100,22 @@ namespace XueGao
 
             if (definition == null || definition.fullSprite == null)
             {
+                ediblePixelCount = 0;
+                pixels = null;
+                ediblePixels = null;
+                eatenPixels = null;
+                if (iceCreamRenderer != null)
+                {
+                    iceCreamRenderer.sprite = null;
+                    iceCreamRenderer.gameObject.SetActive(false);
+                }
+
+                if (stickRenderer != null)
+                {
+                    stickRenderer.gameObject.SetActive(false);
+                }
+
+                ProgressChanged?.Invoke(Progress);
                 return;
             }
 
@@ -139,6 +156,11 @@ namespace XueGao
             }
 
             ProgressChanged?.Invoke(Progress);
+        }
+
+        public void Clear()
+        {
+            Load(null, null);
         }
 
         public bool TryBite(Vector3 worldPosition, float radiusWorld)
@@ -779,6 +801,21 @@ namespace XueGao
             }
 
             detachedPieceObjects.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseRuntimeTexture();
+            ClearDetachedPieces();
+        }
+
+        private void ReleaseRuntimeTexture()
+        {
+            if (runtimeTexture != null)
+            {
+                Destroy(runtimeTexture);
+                runtimeTexture = null;
+            }
         }
 
         private static Color WithAlpha(Color color, float alpha)
