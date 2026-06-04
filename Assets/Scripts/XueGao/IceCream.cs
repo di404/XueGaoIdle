@@ -92,7 +92,6 @@ namespace XueGao
                 ediblePixels = null;
                 eatenPixels = null;
                 SetIceCreamSprite(null, false);
-                HideStick();
                 return;
             }
 
@@ -128,7 +127,7 @@ namespace XueGao
             SetIceCreamSprite(runtimeSprite, true);
             GenerateSamplePoints(sourceSprite, alphaThreshold);
             ApplyStickDefinition(stickDefinition);
-            HideStick();
+            InitOutline();
         }
 
         public void LoadDefinitionForTable(IceCreamDefinition definition)
@@ -146,17 +145,12 @@ namespace XueGao
             samplePoints.Clear();
             sampleNeighbors.Clear();
             SetIceCreamSprite(definition != null ? definition.fullSprite : null, definition != null && definition.fullSprite != null);
-            HideStick();
+            //HideStick();
         }
 
         public void LoadForEating(IceCreamStickDefinition stickDefinition = null)
         {
             Load(currentDefinition, stickDefinition);
-        }
-
-        public void Clear()
-        {
-            Load(null, null);
         }
 
         public BiteResult TryBite(Vector3 worldPosition, float radiusWorld)
@@ -966,6 +960,11 @@ namespace XueGao
             {
                 boxCollider = gameObject.AddComponent<BoxCollider2D>();
             }
+        }
+
+        private void InitOutline()
+        {
+            GetComponentInChildren<IceCreamOutline>(true)?.Initialize(iceCreamRenderer, stickRenderer);
         }
 
         private void SetIceCreamSprite(Sprite sprite, bool visible)

@@ -11,9 +11,15 @@ namespace XueGao
         [SerializeField] private IceCreamFactory iceCreamFactory;
         [SerializeField] private int tableCapacity = 12;
         [SerializeField] private Vector2 tableCenter = new Vector2(0f, -0.65f);
+        [SerializeField] private Vector2 tableSize = new Vector2(6.2f, 3.4f);
         [SerializeField] private Vector2 tableSlotSpacing = new Vector2(1.35f, 1.1f);
         [SerializeField] private int tableColumns = 4;
+        [SerializeField] private Vector2 tableSlotSize = new Vector2(0.9f, 0.9f);
+        [SerializeField] private List<Vector2> tableSlotOffsets = new List<Vector2>();
         [SerializeField] private float tableItemMaxHeight = 0.82f;
+        [SerializeField] private bool debugDrawLayout = true;
+        [SerializeField] private Color debugTableBoundsColor = new Color(1f, 0.75f, 0.1f, 0.9f);
+        [SerializeField] private Color debugSlotColor = new Color(0.15f, 0.95f, 1f, 0.9f);
 
         private readonly List<IceCream> iceCreams = new List<IceCream>();
         private Transform tableRoot;
@@ -36,6 +42,7 @@ namespace XueGao
             }
 
             EnsureTableRoot();
+            UpdateTableSurfaceTransform();
         }
 
         public bool TryAdd(IceCreamDefinition definition, out IceCream iceCream, out string failureMessage)
@@ -66,6 +73,7 @@ namespace XueGao
             ScaleTableItem(iceCream.transform, definition != null ? definition.fullSprite : null);
             iceCream.Clicked += OnIceCreamClicked;
             iceCream.HoverChanged += OnIceCreamHoverChanged;
+            iceCream.Dragged += OnIceCreamDragged;
             iceCream.InteractionEnabled = true;
             iceCream.DragEnabled = true;
             iceCream.RefreshCollider();
@@ -82,6 +90,7 @@ namespace XueGao
 
             iceCream.Clicked -= OnIceCreamClicked;
             iceCream.HoverChanged -= OnIceCreamHoverChanged;
+            iceCream.Dragged -= OnIceCreamDragged;
             iceCreams.Remove(iceCream);
             Destroy(iceCream.gameObject);
         }
@@ -159,6 +168,7 @@ namespace XueGao
                 {
                     iceCreams[i].Clicked -= OnIceCreamClicked;
                     iceCreams[i].HoverChanged -= OnIceCreamHoverChanged;
+                    iceCreams[i].Dragged -= OnIceCreamDragged;
                 }
             }
 
@@ -175,7 +185,7 @@ namespace XueGao
                 return;
             }
 
-            Transform existing = transform.Find("TableRoot");
+            Transform existing = transform.name == "TableRoot" ? transform : transform.Find("TableRoot");
             if (existing != null)
             {
                 tableRoot = existing;
@@ -193,7 +203,7 @@ namespace XueGao
             GameObject surface = new GameObject("TableSurface");
             surface.transform.SetParent(tableRoot, false);
             surface.transform.position = new Vector3(tableCenter.x, tableCenter.y, 0f);
-            surface.transform.localScale = new Vector3(6.2f, 3.4f, 1f);
+            surface.transform.localScale = new Vector3(tableSize.x, tableSize.y, 1f);
 
             tableSurfaceTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
             tableSurfaceTexture.SetPixel(0, 0, new Color(0.98f, 0.82f, 0.55f, 1f));
@@ -205,6 +215,19 @@ namespace XueGao
             tableSurfaceRenderer.sortingOrder = -4;
         }
 
+        private void UpdateTableSurfaceTransform()
+        {
+            if (tableSurfaceRenderer == null)
+            {
+                return;
+            }
+
+            Transform surfaceTransform = tableSurfaceRenderer.transform;
+            surfaceTransform.position = new Vector3(tableCenter.x, tableCenter.y, surfaceTransform.position.z);
+            Vector2 safeTableSize = GetSafeTableSize();
+            surfaceTransform.localScale = new Vector3(safeTableSize.x, safeTableSize.y, surfaceTransform.localScale.z);
+        }
+
         private Vector3 GetSlotPosition(int index)
         {
             int columns = Mathf.Max(1, tableColumns);
@@ -213,7 +236,8 @@ namespace XueGao
             int visibleRows = Mathf.Max(1, Mathf.CeilToInt(tableCapacity / (float)columns));
             float startX = tableCenter.x - (columns - 1) * tableSlotSpacing.x * 0.5f;
             float startY = tableCenter.y + (visibleRows - 1) * tableSlotSpacing.y * 0.5f;
-            return new Vector3(startX + column * tableSlotSpacing.x, startY - row * tableSlotSpacing.y, 0f);
+            Vector2 offset = tableSlotOffsets != null && index < tableSlotOffsets.Count ? tableSlotOffsets[index] : Vector2.zero;
+            return new Vector3(startX + column * tableSlotSpacing.x + offset.x, startY - row * tableSlotSpacing.y + offset.y, 0f);
         }
 
         private void ScaleTableItem(Transform itemTransform, Sprite sprite)
@@ -242,6 +266,110 @@ namespace XueGao
         private void OnIceCreamHoverChanged(IceCream iceCream, bool isHovered)
         {
             // Hook kept here so table-level hover behavior can evolve without involving GameManager.
+        }
+
+        private void OnIceCreamDragged(IceCream iceCream, Vector3 targetPosition)
+        {
+            if (iceCream == null)
+            {
+                return;
+            }
+
+            Bounds visualBounds = iceCream.GetVisualBounds();
+            Vector2 halfTableSize = GetSafeTableSize() * 0.5f;
+            float tableMinX = tableCenter.x - halfTableSize.x;
+            float tableMaxX = tableCenter.x + halfTableSize.x;
+            float tableMinY = tableCenter.y - halfTableSize.y;
+            float tableMaxY = tableCenter.y + halfTableSize.y;
+
+            Vector3 clampedPosition = targetPosition;
+            if (visualBounds.size.x > tableMaxX - tableMinX)
+            {
+                clampedPosition.x += tableCenter.x - visualBounds.center.x;
+            }
+            else if (visualBounds.min.x < tableMinX)
+            {
+                clampedPosition.x += tableMinX - visualBounds.min.x;
+            }
+            else if (visualBounds.max.x > tableMaxX)
+            {
+                clampedPosition.x -= visualBounds.max.x - tableMaxX;
+            }
+
+            if (visualBounds.size.y > tableMaxY - tableMinY)
+            {
+                clampedPosition.y += tableCenter.y - visualBounds.center.y;
+            }
+            else if (visualBounds.min.y < tableMinY)
+            {
+                clampedPosition.y += tableMinY - visualBounds.min.y;
+            }
+            else if (visualBounds.max.y > tableMaxY)
+            {
+                clampedPosition.y -= visualBounds.max.y - tableMaxY;
+            }
+
+            iceCream.transform.position = clampedPosition;
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!debugDrawLayout)
+            {
+                return;
+            }
+
+            Gizmos.matrix = Matrix4x4.identity;
+            Gizmos.color = debugTableBoundsColor;
+            Gizmos.DrawWireCube(new Vector3(tableCenter.x, tableCenter.y, 0f), GetSafeTableSize());
+
+            Vector2 slotSize = new Vector2(Mathf.Max(0.01f, tableSlotSize.x), Mathf.Max(0.01f, tableSlotSize.y));
+            int slotCount = Mathf.Max(0, tableCapacity);
+            for (int i = 0; i < slotCount; i++)
+            {
+                Vector3 slotPosition = GetSlotPosition(i);
+                Gizmos.color = debugSlotColor;
+                Gizmos.DrawWireCube(slotPosition, slotSize);
+                Gizmos.DrawSphere(slotPosition, Mathf.Min(slotSize.x, slotSize.y) * 0.06f);
+            }
+        }
+
+        private Vector2 GetSafeTableSize()
+        {
+            return new Vector2(Mathf.Max(0.01f, tableSize.x), Mathf.Max(0.01f, tableSize.y));
+        }
+
+        private void OnValidate()
+        {
+            tableCapacity = Mathf.Max(0, tableCapacity);
+            tableColumns = Mathf.Max(1, tableColumns);
+
+            if (tableSlotOffsets == null)
+            {
+                tableSlotOffsets = new List<Vector2>();
+            }
+
+            while (tableSlotOffsets.Count < tableCapacity)
+            {
+                tableSlotOffsets.Add(Vector2.zero);
+            }
+
+            if (tableSlotOffsets.Count > tableCapacity)
+            {
+                tableSlotOffsets.RemoveRange(tableCapacity, tableSlotOffsets.Count - tableCapacity);
+            }
+
+            if (tableRoot == null)
+            {
+                tableRoot = transform.name == "TableRoot" ? transform : transform.Find("TableRoot");
+            }
+
+            if (tableSurfaceRenderer == null && tableRoot != null)
+            {
+                tableSurfaceRenderer = tableRoot.GetComponentInChildren<SpriteRenderer>();
+            }
+
+            UpdateTableSurfaceTransform();
         }
 
         private static Color WithAlpha(Color color, float alpha)

@@ -63,7 +63,7 @@ namespace XueGao
 
             if (table == null)
             {
-                table = GetComponent<IceCreamTable>();
+                throw new System.MissingFieldException("Missing Table");
             }
 
             if (table != null)
