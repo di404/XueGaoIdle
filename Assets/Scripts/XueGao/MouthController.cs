@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -29,6 +31,7 @@ namespace XueGao
         private Vector3 pointerWorld;
         private Vector3 visualBaseScale = Vector3.one;
         private float visualBaseRadius = 1f;
+        private readonly List<RaycastResult> uiRaycastResults = new List<RaycastResult>();
 
         private void Awake()
         {
@@ -112,17 +115,7 @@ namespace XueGao
                 mainCamera = Camera.main;
             }
 
-            Vector2 screenPosition = Vector2.zero;
-#if ENABLE_INPUT_SYSTEM
-            if (Mouse.current != null)
-            {
-                screenPosition = Mouse.current.position.ReadValue();
-            }
-            else if (Touchscreen.current != null)
-            {
-                screenPosition = Touchscreen.current.primaryTouch.position.ReadValue();
-            }
-#endif
+            Vector2 screenPosition = GetPointerScreenPosition();
             Vector3 world = mainCamera.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, -mainCamera.transform.position.z));
             world.z = 0f;
             return world;
@@ -201,7 +194,43 @@ namespace XueGao
 
         private bool IsPointerOverUI()
         {
-            return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            EventSystem eventSystem = EventSystem.current;
+            if (eventSystem == null)
+            {
+                return false;
+            }
+
+            uiRaycastResults.Clear();
+            PointerEventData pointerData = new PointerEventData(eventSystem)
+            {
+                position = GetPointerScreenPosition()
+            };
+            eventSystem.RaycastAll(pointerData, uiRaycastResults);
+            for (int i = 0; i < uiRaycastResults.Count; i++)
+            {
+                if (uiRaycastResults[i].module is GraphicRaycaster)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static Vector2 GetPointerScreenPosition()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null)
+            {
+                return Mouse.current.position.ReadValue();
+            }
+
+            if (Touchscreen.current != null)
+            {
+                return Touchscreen.current.primaryTouch.position.ReadValue();
+            }
+#endif
+            return Vector2.zero;
         }
 
         private static Vector3 WithCurrentZ(Transform target, Vector3 world)

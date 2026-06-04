@@ -503,6 +503,7 @@ GameObject:
   - component: {fileID: 5174471965001985963}
   - component: {fileID: 8185932262118656279}
   - component: {fileID: 369673698425560687}
+  - component: {fileID: 6971351479444992726}
   m_Layer: 0
   m_Name: GameRoot
   m_TagString: Untagged
@@ -546,7 +547,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 5afa8978155ecb04c897c78a4d395e53, type: 2}
   - {fileID: 11400000, guid: e66a406ac686ba4468cad8c8ad532cf7, type: 2}
   eater: {fileID: 2562245520213527012}
-  iceCreamFactory: {fileID: 369673698425560687}
+  table: {fileID: 6971351479444992726}
   mouth: {fileID: 2275364587909111963}
   lottery: {fileID: 8185932262118656279}
   ui: {fileID: 6797343125851854834}
@@ -554,11 +555,6 @@ MonoBehaviour:
   defaultStickDefinition: {fileID: 0}
   stickRevealDelay: 0.45
   prizeRevealDelay: 0.65
-  tableCapacity: 12
-  tableCenter: {x: 0, y: -0.65}
-  tableSlotSpacing: {x: 1.35, y: 1.1}
-  tableColumns: 4
-  tableItemMaxHeight: 0.82
   focusedIceCreamPosition: {x: 0, y: -0.28, z: 0}
   focusedTableAlpha: 0.18
 --- !u!114 &8185932262118656279
@@ -603,6 +599,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::XueGao.IceCreamFactory
   iceCreamPrefab: {fileID: 5785161223262919934, guid: 3b61ba8f63527e345a9f0e61306d2187, type: 3}
+--- !u!114 &6971351479444992726
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8344076538468754134}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ad4f130c4ec4ee5a0f0a74788216f5d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::XueGao.IceCreamTable
+  iceCreamFactory: {fileID: 369673698425560687}
+  tableCapacity: 12
+  tableCenter: {x: 0, y: -0.65}
+  tableSlotSpacing: {x: 1.35, y: 1.1}
+  tableColumns: 4
+  tableItemMaxHeight: 0.82
 --- !u!1001 &5782231879417865544
 PrefabInstance:
   m_ObjectHideFlags: 0
