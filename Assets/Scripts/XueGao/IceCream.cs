@@ -92,7 +92,7 @@ namespace XueGao
                 ediblePixels = null;
                 eatenPixels = null;
                 SetIceCreamSprite(null, false);
-                HideStick();
+                //HideStick();
                 return;
             }
 
@@ -128,7 +128,7 @@ namespace XueGao
             SetIceCreamSprite(runtimeSprite, true);
             GenerateSamplePoints(sourceSprite, alphaThreshold);
             ApplyStickDefinition(stickDefinition);
-            HideStick();
+            //HideStick();
         }
 
         public void LoadDefinitionForTable(IceCreamDefinition definition)
@@ -146,7 +146,7 @@ namespace XueGao
             samplePoints.Clear();
             sampleNeighbors.Clear();
             SetIceCreamSprite(definition != null ? definition.fullSprite : null, definition != null && definition.fullSprite != null);
-            HideStick();
+            //HideStick();
         }
 
         public void LoadForEating(IceCreamStickDefinition stickDefinition = null)
