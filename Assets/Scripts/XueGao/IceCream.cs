@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -15,11 +14,7 @@ namespace XueGao
         [SerializeField] private float debugSamplePointSize = 0.035f;
         [SerializeField] private Color debugUneatenSampleColor = new Color(0.15f, 0.95f, 1f, 0.95f);
         [SerializeField] private Color debugEatenSampleColor = new Color(1f, 0.35f, 0.35f, 0.95f);
-        [SerializeField] private float smallPieceFadeDuration = 0.45f;
-        [SerializeField] private float smallPieceFadeStartAlpha = 1f;
-        [SerializeField] private float smallPieceFallDistance = 0.65f;
-        [SerializeField] private float smallPieceHorizontalDrift = 0.12f;
-        [SerializeField] private float smallPieceTiltAngle = 14f;
+        [SerializeField] private IceCreamDetachedPiecePresenter detachedPiecePresenter;
 
         private Texture2D runtimeTexture;
         private Sprite runtimeSprite;
@@ -28,7 +23,6 @@ namespace XueGao
         private bool[] eatenPixels;
         private readonly List<SamplePoint> samplePoints = new List<SamplePoint>();
         private readonly List<List<int>> sampleNeighbors = new List<List<int>>();
-        private readonly List<GameObject> detachedPieceObjects = new List<GameObject>();
         private int ediblePixelCount;
         private int eatenPixelCount;
         private bool completed;
@@ -705,17 +699,23 @@ namespace XueGao
                 return;
             }
 
-            Texture2D detachedTexture = new Texture2D(runtimeTexture.width, runtimeTexture.height, TextureFormat.RGBA32, false)
+            Sprite sourceSprite = iceCreamRenderer != null ? iceCreamRenderer.sprite : null;
+            if (sourceSprite == null)
             {
-                filterMode = runtimeTexture.filterMode
-            };
-            detachedTexture.SetPixels(detachedPixels);
-            detachedTexture.Apply();
+                MarkDetachedSamplesEaten(sampleIndices);
+                return;
+            }
 
-            Sprite sourceSprite = iceCreamRenderer.sprite;
-            Sprite detachedSprite = Sprite.Create(detachedTexture, new Rect(0f, 0f, detachedTexture.width, detachedTexture.height), sourceSprite.pivot / sourceSprite.rect.size, sourceSprite.pixelsPerUnit);
-            SpriteRenderer detachedRenderer = CreateDetachedPieceRenderer(detachedSprite);
-            StartCoroutine(FadeDetachedPiece(detachedRenderer, detachedTexture, detachedSprite, detachedPixelCount, sampleIndices));
+            ResolveDetachedPiecePresenter()?.Present(
+                iceCreamRenderer,
+                detachedPixels,
+                runtimeTexture.width,
+                runtimeTexture.height,
+                runtimeTexture.filterMode,
+                sourceSprite.pivot / sourceSprite.rect.size,
+                sourceSprite.pixelsPerUnit,
+                detachedPixelCount,
+                completedDetachedPixelCount => OnDetachedPieceCompleted(sampleIndices, completedDetachedPixelCount));
         }
 
         private int FindNearestUneatenSampleIndex(int pixelX, int pixelY)
@@ -752,78 +752,11 @@ namespace XueGao
             return nearestIndex;
         }
 
-        private SpriteRenderer CreateDetachedPieceRenderer(Sprite detachedSprite)
+        private void OnDetachedPieceCompleted(HashSet<int> sampleIndices, int detachedPixelCount)
         {
-            GameObject detachedObject = new GameObject("DetachedIceCreamPiece");
-            detachedObject.transform.SetParent(iceCreamRenderer.transform.parent, false);
-            detachedObject.transform.position = iceCreamRenderer.transform.position;
-            detachedObject.transform.rotation = iceCreamRenderer.transform.rotation;
-            detachedObject.transform.localScale = iceCreamRenderer.transform.localScale;
-
-            SpriteRenderer detachedRenderer = detachedObject.AddComponent<SpriteRenderer>();
-            detachedRenderer.sprite = detachedSprite;
-            detachedRenderer.color = WithAlpha(iceCreamRenderer.color, smallPieceFadeStartAlpha);
-            detachedRenderer.flipX = iceCreamRenderer.flipX;
-            detachedRenderer.flipY = iceCreamRenderer.flipY;
-            detachedRenderer.drawMode = iceCreamRenderer.drawMode;
-            detachedRenderer.sortingLayerID = iceCreamRenderer.sortingLayerID;
-            detachedRenderer.sortingOrder = iceCreamRenderer.sortingOrder + 1;
-            detachedRenderer.sharedMaterial = iceCreamRenderer.sharedMaterial;
-            detachedPieceObjects.Add(detachedObject);
-            return detachedRenderer;
-        }
-
-        private IEnumerator FadeDetachedPiece(SpriteRenderer detachedRenderer, Texture2D detachedTexture, Sprite detachedSprite, int detachedPixelCount, HashSet<int> sampleIndices)
-        {
-            float duration = Mathf.Max(0.01f, smallPieceFadeDuration);
-            Color startColor = detachedRenderer.color;
-            Transform detachedTransform = detachedRenderer.transform;
-            Vector3 startLocalPosition = detachedTransform.localPosition;
-            Quaternion startLocalRotation = detachedTransform.localRotation;
-            float driftDirection = UnityEngine.Random.value < 0.5f ? -1f : 1f;
-            Vector3 endLocalPosition = startLocalPosition + new Vector3(smallPieceHorizontalDrift * driftDirection, -smallPieceFallDistance, 0f);
-            Quaternion endLocalRotation = startLocalRotation * Quaternion.Euler(0f, 0f, smallPieceTiltAngle * driftDirection);
-            for (float t = 0f; t < duration; t += Time.deltaTime)
-            {
-                if (detachedRenderer == null)
-                {
-                    yield break;
-                }
-
-                float ratio = Mathf.Clamp01(t / duration);
-                float easedRatio = EaseOutCubic(ratio);
-                detachedTransform.localPosition = Vector3.LerpUnclamped(startLocalPosition, endLocalPosition, easedRatio);
-                detachedTransform.localRotation = Quaternion.LerpUnclamped(startLocalRotation, endLocalRotation, easedRatio);
-                detachedRenderer.color = WithAlpha(startColor, Mathf.Lerp(smallPieceFadeStartAlpha, 0f, ratio));
-                yield return null;
-            }
-
-            if (detachedRenderer != null)
-            {
-                detachedTransform.localPosition = endLocalPosition;
-                detachedTransform.localRotation = endLocalRotation;
-                detachedRenderer.color = WithAlpha(startColor, 0f);
-            }
-
             MarkDetachedSamplesEaten(sampleIndices);
             eatenPixelCount += detachedPixelCount;
             ProgressChanged?.Invoke(Progress);
-
-            if (detachedRenderer != null)
-            {
-                detachedPieceObjects.Remove(detachedRenderer.gameObject);
-                Destroy(detachedRenderer.gameObject);
-            }
-
-            if (detachedSprite != null)
-            {
-                Destroy(detachedSprite);
-            }
-
-            if (detachedTexture != null)
-            {
-                Destroy(detachedTexture);
-            }
         }
 
         private void MarkDetachedSamplesEaten(HashSet<int> sampleIndices)
@@ -839,16 +772,12 @@ namespace XueGao
 
         private void ClearDetachedPieces()
         {
-            StopAllCoroutines();
-            for (int i = detachedPieceObjects.Count - 1; i >= 0; i--)
+            if (detachedPiecePresenter == null)
             {
-                if (detachedPieceObjects[i] != null)
-                {
-                    Destroy(detachedPieceObjects[i]);
-                }
+                detachedPiecePresenter = GetComponent<IceCreamDetachedPiecePresenter>();
             }
 
-            detachedPieceObjects.Clear();
+            detachedPiecePresenter?.Clear();
         }
 
         private void ResolveRenderers()
@@ -897,6 +826,21 @@ namespace XueGao
             return outline;
         }
 
+        private IceCreamDetachedPiecePresenter ResolveDetachedPiecePresenter()
+        {
+            if (detachedPiecePresenter == null)
+            {
+                detachedPiecePresenter = GetComponent<IceCreamDetachedPiecePresenter>();
+            }
+
+            if (detachedPiecePresenter == null)
+            {
+                detachedPiecePresenter = gameObject.AddComponent<IceCreamDetachedPiecePresenter>();
+            }
+
+            return detachedPiecePresenter;
+        }
+
         private void SetIceCreamSprite(Sprite sprite, bool visible)
         {
             if (iceCreamRenderer == null)
@@ -935,12 +879,6 @@ namespace XueGao
         {
             color.a = Mathf.Clamp01(alpha);
             return color;
-        }
-
-        private static float EaseOutCubic(float value)
-        {
-            value = 1f - Mathf.Clamp01(value);
-            return 1f - value * value * value;
         }
 
         public readonly struct BiteResult

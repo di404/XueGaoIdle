@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace XueGao
@@ -94,7 +95,7 @@ namespace XueGao
             luckUpgradeButton.interactable = canBuyLuck;
         }
 
-        public void BuildShop(IReadOnlyList<IceCreamDefinition> definitions, UnityEngine.Events.UnityAction<int> onClicked)
+        public void BuildShop(IReadOnlyList<IceCreamDefinition> definitions, UnityAction<int, RectTransform> onClicked)
         {
             if (shopRoot == null || shopItemPrefab == null)
             {
@@ -115,7 +116,7 @@ namespace XueGao
                 int maxPrize = HighestBasePrize * Mathf.Max(1, definition.prizeMultiplier);
                 ShopItemView item = Instantiate(shopItemPrefab, shopRoot);
                 item.gameObject.SetActive(true);
-                item.Bind(definition, maxPrize, true, () => onClicked(index));
+                item.Bind(definition, maxPrize, true, () => onClicked(index, item.SourceRectTransform));
                 shopItems.Add(item);
             }
         }

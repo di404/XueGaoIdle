@@ -122,7 +122,7 @@ namespace XueGao
             }
         }
 
-        private void BuyIceCream(int index)
+        private void BuyIceCream(int index, RectTransform sourceRect)
         {
             if (state != GameState.Table || index < 0 || index >= iceCreams.Count)
             {
@@ -151,7 +151,8 @@ namespace XueGao
                 return;
             }
 
-            if (table.TryAdd(definition, out _, out string failureMessage))
+            Vector3? sourceWorldPosition = TryGetSourceWorldPosition(sourceRect, out Vector3 worldPosition) ? worldPosition : (Vector3?)null;
+            if (table.TryAdd(definition, sourceWorldPosition, out _, out string failureMessage))
             {
                 money -= definition.price;
                 ui.SetPrizeMessage($"买了一根{definition.displayName}。");
@@ -162,6 +163,31 @@ namespace XueGao
             }
 
             RefreshUI();
+        }
+
+        private static bool TryGetSourceWorldPosition(RectTransform sourceRect, out Vector3 worldPosition)
+        {
+            worldPosition = Vector3.zero;
+            Camera worldCamera = Camera.main;
+            if (sourceRect == null || worldCamera == null)
+            {
+                return false;
+            }
+
+            Canvas canvas = sourceRect.GetComponentInParent<Canvas>();
+            Camera uiCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            Vector3 rectCenter = sourceRect.TransformPoint(sourceRect.rect.center);
+            Vector2 screenPoint = RectTransformUtility.WorldToScreenPoint(uiCamera, rectCenter);
+            Ray ray = worldCamera.ScreenPointToRay(screenPoint);
+            Plane tablePlane = new Plane(Vector3.forward, Vector3.zero);
+            if (!tablePlane.Raycast(ray, out float distance))
+            {
+                return false;
+            }
+
+            worldPosition = ray.GetPoint(distance);
+            worldPosition.z = 0f;
+            return true;
         }
 
         private void OnTableIceCreamClicked(IceCream iceCream)

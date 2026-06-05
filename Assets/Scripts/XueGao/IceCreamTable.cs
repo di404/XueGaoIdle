@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
 
 namespace XueGao
@@ -17,6 +18,11 @@ namespace XueGao
         [SerializeField] private Vector2 tableSlotSize = new Vector2(0.9f, 0.9f);
         [SerializeField] private List<Vector2> tableSlotOffsets = new List<Vector2>();
         [SerializeField] private float tableItemMaxHeight = 0.82f;
+        [Header("Purchase Fly In")]
+        [SerializeField] private float purchaseFlyDuration = 0.45f;
+        [SerializeField] private float purchaseFlyInitialScaleMultiplier = 0.55f;
+        [SerializeField] private Ease purchaseFlyMoveEase = Ease.OutCubic;
+        [SerializeField] private Ease purchaseFlyScaleEase = Ease.OutBack;
         [SerializeField] private bool debugDrawLayout = true;
         [SerializeField] private Color debugTableBoundsColor = new Color(1f, 0.75f, 0.1f, 0.9f);
         [SerializeField] private Color debugSlotColor = new Color(0.15f, 0.95f, 1f, 0.9f);
@@ -47,6 +53,11 @@ namespace XueGao
 
         public bool TryAdd(IceCreamDefinition definition, out IceCream iceCream, out string failureMessage)
         {
+            return TryAdd(definition, null, out iceCream, out failureMessage);
+        }
+
+        public bool TryAdd(IceCreamDefinition definition, Vector3? sourceWorldPosition, out IceCream iceCream, out string failureMessage)
+        {
             Initialize();
             iceCream = null;
             failureMessage = null;
@@ -63,7 +74,10 @@ namespace XueGao
                 return false;
             }
 
-            iceCream = iceCreamFactory.Create(definition, tableRoot, GetSlotPosition(iceCreams.Count), 2 + iceCreams.Count);
+            int slotIndex = iceCreams.Count;
+            Vector3 targetPosition = GetSlotPosition(slotIndex);
+            int sortingOrder = 2 + slotIndex;
+            iceCream = iceCreamFactory.Create(definition, tableRoot, targetPosition, sortingOrder);
             if (iceCream == null)
             {
                 failureMessage = "雪糕模板未配置，无法生成雪糕。";
@@ -71,14 +85,24 @@ namespace XueGao
             }
 
             ScaleTableItem(iceCream.transform, definition != null ? definition.fullSprite : null);
+            Vector3 targetScale = iceCream.transform.localScale;
             IceCreamDesktopInteraction interaction = RegisterInteraction(iceCream);
+            bool shouldAnimate = sourceWorldPosition.HasValue && purchaseFlyDuration > 0f;
             if (interaction != null)
             {
-                interaction.InteractionEnabled = true;
-                interaction.DragEnabled = true;
+                interaction.InteractionEnabled = !shouldAnimate;
+                interaction.DragEnabled = !shouldAnimate;
             }
 
-            iceCream.RefreshCollider();
+            if (shouldAnimate)
+            {
+                PlayPurchaseFlyIn(iceCream, sourceWorldPosition.Value, targetPosition, targetScale, interaction);
+            }
+            else
+            {
+                iceCream.RefreshCollider();
+            }
+
             iceCreams.Add(iceCream);
             return true;
         }
@@ -92,6 +116,7 @@ namespace XueGao
 
             UnregisterInteraction(iceCream);
             iceCreams.Remove(iceCream);
+            iceCream.transform.DOKill();
             Destroy(iceCream.gameObject);
         }
 
@@ -105,6 +130,7 @@ namespace XueGao
                     continue;
                 }
 
+                iceCream.transform.DOKill();
                 iceCream.transform.SetParent(tableRoot, false);
                 iceCream.transform.position = GetSlotPosition(i);
                 iceCream.transform.localRotation = Quaternion.identity;
@@ -252,6 +278,41 @@ namespace XueGao
             float height = Mathf.Max(0.001f, sprite.bounds.size.y);
             float scale = tableItemMaxHeight / height;
             itemTransform.localScale = Vector3.one * scale;
+        }
+
+        private void PlayPurchaseFlyIn(IceCream iceCream, Vector3 sourcePosition, Vector3 targetPosition, Vector3 targetScale, IceCreamDesktopInteraction interaction)
+        {
+            if (iceCream == null)
+            {
+                return;
+            }
+
+            Transform iceCreamTransform = iceCream.transform;
+            iceCreamTransform.DOKill();
+            iceCreamTransform.position = sourcePosition;
+            iceCreamTransform.localScale = targetScale * Mathf.Max(0.01f, purchaseFlyInitialScaleMultiplier);
+
+            Sequence sequence = DOTween.Sequence();
+            sequence.SetLink(iceCream.gameObject);
+            sequence.Join(iceCreamTransform.DOMove(targetPosition, purchaseFlyDuration).SetEase(purchaseFlyMoveEase));
+            sequence.Join(iceCreamTransform.DOScale(targetScale, purchaseFlyDuration).SetEase(purchaseFlyScaleEase));
+            sequence.OnComplete(() =>
+            {
+                if (iceCream == null)
+                {
+                    return;
+                }
+
+                iceCreamTransform.position = targetPosition;
+                iceCreamTransform.localScale = targetScale;
+                if (interaction != null)
+                {
+                    interaction.InteractionEnabled = true;
+                    interaction.DragEnabled = true;
+                }
+
+                iceCream.RefreshCollider();
+            });
         }
 
         private void OnIceCreamClicked(IceCream iceCream)

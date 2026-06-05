@@ -137,6 +137,7 @@ GameObject:
   - component: {fileID: 7979542273110913423}
   - component: {fileID: 8187993008065944742}
   - component: {fileID: 3662284028736010192}
+  - component: {fileID: 2778218596895593082}
   m_Layer: 0
   m_Name: IceCream
   m_TagString: Untagged
@@ -180,11 +181,24 @@ MonoBehaviour:
   debugSamplePointSize: 0.035
   debugUneatenSampleColor: {r: 0.15, g: 0.95, b: 1, a: 0.95}
   debugEatenSampleColor: {r: 1, g: 0.35, b: 0.35, a: 0.95}
-  smallPieceFadeDuration: 0.45
-  smallPieceFadeStartAlpha: 1
-  smallPieceFallDistance: 0.65
-  smallPieceHorizontalDrift: 0.12
-  smallPieceTiltAngle: 14
+  detachedPiecePresenter: {fileID: 2778218596895593082}
+--- !u!114 &2778218596895593082
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4736220914895638901}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b57a55eb2f1c45c5ad75d5748fe31c23, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::XueGao.IceCreamDetachedPiecePresenter
+  fadeDuration: 0.45
+  fadeStartAlpha: 1
+  fallDistance: 0.65
+  horizontalDrift: 0.12
+  tiltAngle: 14
 --- !u!61 &7979542273110913423
 BoxCollider2D:
   m_ObjectHideFlags: 0

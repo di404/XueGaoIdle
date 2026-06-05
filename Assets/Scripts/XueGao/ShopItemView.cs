@@ -20,6 +20,15 @@ namespace XueGao
             }
         }
 
+        public RectTransform SourceRectTransform
+        {
+            get
+            {
+                ResolveReferences();
+                return button != null ? button.transform as RectTransform : transform as RectTransform;
+            }
+        }
+
         public void Bind(IceCreamDefinition definition, int maxPrize, bool canBuy, UnityAction onClicked)
         {
             ResolveReferences();
