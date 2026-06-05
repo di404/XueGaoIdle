@@ -69,6 +69,7 @@ namespace XueGao
             currentIceCream.InteractionEnabled = false;
             currentIceCream.DragEnabled = false;
             currentIceCream.LoadForEating(stickDefinition);
+            currentIceCream.SetOutlineVisible(false);
             ProgressChanged?.Invoke(Progress);
         }
 

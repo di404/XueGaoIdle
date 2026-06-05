@@ -45,6 +45,7 @@ namespace XueGao
         private IceCreamDefinition currentDefinition;
         private IceCreamStickDefinition currentStickDefinition;
         private BoxCollider2D boxCollider;
+        private IceCreamOutline outline;
 
         public float Progress => ediblePixelCount <= 0 ? 0f : eatenPixelCount / (float)ediblePixelCount;
         public IceCreamDefinition CurrentDefinition => currentDefinition;
@@ -74,11 +75,11 @@ namespace XueGao
             ResolveCollider();
         }
 
-        public void Load(IceCreamDefinition definition, IceCreamStickDefinition stickDefinition = null)
+        public void LoadForEating(IceCreamStickDefinition stickDefinition = null)
         {
             ReleaseRuntimeSpriteAndTexture();
             ClearDetachedPieces();
-            currentDefinition = definition;
+            var definition = currentDefinition;
             currentStickDefinition = stickDefinition;
             completed = false;
             eatenPixelCount = 0;
@@ -145,12 +146,8 @@ namespace XueGao
             samplePoints.Clear();
             sampleNeighbors.Clear();
             SetIceCreamSprite(definition != null ? definition.fullSprite : null, definition != null && definition.fullSprite != null);
+            InitOutline();
             //HideStick();
-        }
-
-        public void LoadForEating(IceCreamStickDefinition stickDefinition = null)
-        {
-            Load(currentDefinition, stickDefinition);
         }
 
         public BiteResult TryBite(Vector3 worldPosition, float radiusWorld)
@@ -266,6 +263,19 @@ namespace XueGao
                 stickRenderer.gameObject.SetActive(false);
             }
         }
+        public void SetOutlineVisible(bool visible)
+        {
+            if (outline == null)
+            {
+                outline = GetComponentInChildren<IceCreamOutline>(true);
+            }
+
+            outline?.SetVisible(visible);
+            if (!visible)
+            {
+                outline?.SetDefaultColor();
+            }
+        }
 
         public void SetAlpha(float alpha)
         {
@@ -330,6 +340,7 @@ namespace XueGao
         {
             if (interactionEnabled)
             {
+                outline.SetHoverColor();
                 HoverChanged?.Invoke(this, true);
             }
         }
@@ -338,6 +349,7 @@ namespace XueGao
         {
             if (interactionEnabled)
             {
+                outline.SetDefaultColor();
                 HoverChanged?.Invoke(this, false);
             }
         }
@@ -964,7 +976,12 @@ namespace XueGao
 
         private void InitOutline()
         {
-            GetComponentInChildren<IceCreamOutline>(true)?.Initialize(iceCreamRenderer, stickRenderer);
+            if (outline == null)
+            {
+                outline = GetComponentInChildren<IceCreamOutline>(true);
+            }
+
+            outline.Initialize(iceCreamRenderer, stickRenderer);
         }
 
         private void SetIceCreamSprite(Sprite sprite, bool visible)

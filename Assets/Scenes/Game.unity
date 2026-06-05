@@ -504,6 +504,10 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3818666771167100632, guid: 63ef40861c7e9874691afb232e401cb9, type: 3}
+      propertyPath: m_Name
+      value: Table
+      objectReference: {fileID: 0}
     - target: {fileID: 3941486669822905180, guid: 63ef40861c7e9874691afb232e401cb9, type: 3}
       propertyPath: m_LocalScale.x
       value: 6.41

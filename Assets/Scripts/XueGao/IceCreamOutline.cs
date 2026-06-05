@@ -51,6 +51,13 @@ namespace XueGao
             LoadStickSprite(stick.sprite);
             SetSortingOrder(iceCream.sortingOrder - 2);
         }
+
+        public void SetVisible(bool visible)
+        {
+            iceCreamRenderer.gameObject.SetActive(visible);
+            stickRenderer.gameObject.SetActive(visible);
+        }
+
         [Button("Set Hover Color")]
         public void SetHoverColor()
         {
