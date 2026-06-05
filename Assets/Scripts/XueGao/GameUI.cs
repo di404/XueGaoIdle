@@ -17,12 +17,7 @@ namespace XueGao
         [SerializeField] private Text progressText;
         [SerializeField] private Text prizeText;
         [SerializeField] private Text historyText;
-        [SerializeField] private Button mouthUpgradeButton;
-        [SerializeField] private Text mouthUpgradeText;
-        [SerializeField] private Button autoBiteUpgradeButton;
-        [SerializeField] private Text autoBiteUpgradeText;
-        [SerializeField] private Button luckUpgradeButton;
-        [SerializeField] private Text luckUpgradeText;
+        [SerializeField] private UpgradeItemView[] upgradeItems;
         [SerializeField] private Transform shopRoot;
         [SerializeField] private ShopItemView shopItemPrefab;
         [SerializeField] private CanvasGroup storePanelGroup;
@@ -37,9 +32,6 @@ namespace XueGao
 
         private readonly List<ShopItemView> shopItems = new List<ShopItemView>();
 
-        public Button MouthUpgradeButton => mouthUpgradeButton;
-        public Button AutoBiteUpgradeButton => autoBiteUpgradeButton;
-        public Button LuckUpgradeButton => luckUpgradeButton;
         public Button PrizeContinueButton
         {
             get
@@ -85,14 +77,44 @@ namespace XueGao
             tableStatusText.text = message;
         }
 
-        public void SetUpgradeTexts(int mouthLevel, int mouthCost, bool canBuyMouth, int autoLevel, int autoCost, bool canBuyAuto, int luckLevel, int luckCost, bool canBuyLuck)
+        public void BindUpgrades(UpgradeManager upgradeManager, UnityAction<UpgradeType> onClicked)
         {
-            mouthUpgradeText.text = $"升级嘴巴 Lv.{mouthLevel}\n咬痕变大  ￥{mouthCost}";
-            autoBiteUpgradeText.text = $"自动吃 Lv.{autoLevel}\n每秒自动咬  ￥{autoCost}";
-            luckUpgradeText.text = $"幸运值 Lv.{luckLevel}\n更容易中奖  ￥{luckCost}";
-            mouthUpgradeButton.interactable = canBuyMouth;
-            autoBiteUpgradeButton.interactable = canBuyAuto;
-            luckUpgradeButton.interactable = canBuyLuck;
+            ResolveUpgradeItems();
+            if (upgradeManager == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < upgradeItems.Length; i++)
+            {
+                UpgradeItemView item = upgradeItems[i];
+                if (item == null)
+                {
+                    continue;
+                }
+
+                item.Bind(upgradeManager.GetDefinition(item.UpgradeType), onClicked);
+            }
+        }
+
+        public void RefreshUpgrades(UpgradeManager upgradeManager, int money, bool canUseMenu)
+        {
+            ResolveUpgradeItems();
+            if (upgradeManager == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < upgradeItems.Length; i++)
+            {
+                UpgradeItemView item = upgradeItems[i];
+                if (item == null)
+                {
+                    continue;
+                }
+
+                item.Refresh(money, canUseMenu);
+            }
         }
 
         public void BuildShop(IReadOnlyList<IceCreamDefinition> definitions, UnityAction<int, RectTransform> onClicked)
@@ -199,6 +221,29 @@ namespace XueGao
             {
                 CreatePrizeModal();
             }
+        }
+
+        private void ResolveUpgradeItems()
+        {
+            if (upgradeItems != null && upgradeItems.Length > 0)
+            {
+                for (int i = 0; i < upgradeItems.Length; i++)
+                {
+                    if (upgradeItems[i] != null)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            if (upgradePanelGroup != null)
+            {
+                upgradeItems = upgradePanelGroup.GetComponentsInChildren<UpgradeItemView>(true);
+                return;
+            }
+
+            Transform upgradePanel = transform.Find("UpgradePanel");
+            upgradeItems = upgradePanel != null ? upgradePanel.GetComponentsInChildren<UpgradeItemView>(true) : new UpgradeItemView[0];
         }
 
         private CanvasGroup FindChildCanvasGroup(string childName)

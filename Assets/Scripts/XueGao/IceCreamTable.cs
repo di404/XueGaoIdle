@@ -31,9 +31,10 @@ namespace XueGao
         private Transform tableRoot;
         private SpriteRenderer tableSurfaceRenderer;
         private Texture2D tableSurfaceTexture;
+        private int capacityBonus;
 
         public int Count => iceCreams.Count;
-        public int Capacity => tableCapacity;
+        public int Capacity => tableCapacity + capacityBonus;
 
         private void Awake()
         {
@@ -62,7 +63,7 @@ namespace XueGao
             iceCream = null;
             failureMessage = null;
 
-            if (Count >= tableCapacity)
+            if (Count >= Capacity)
             {
                 failureMessage = "桌子放满了，先吃掉几根雪糕。";
                 return false;
@@ -181,7 +182,14 @@ namespace XueGao
                 return "正在吃雪糕";
             }
 
-            return Count == 0 ? "从左侧买一根雪糕放到桌上" : $"桌上雪糕 {Count}/{tableCapacity}，点击一根开始吃";
+            return Count == 0 ? "从左侧买一根雪糕放到桌上" : $"桌上雪糕 {Count}/{Capacity}，点击一根开始吃";
+        }
+
+        public void SetCapacityBonus(int bonus)
+        {
+            capacityBonus = Mathf.Max(0, bonus);
+            Relayout();
+            UpdateTableSurfaceTransform();
         }
 
         private void OnDestroy()
@@ -255,7 +263,7 @@ namespace XueGao
             int columns = Mathf.Max(1, tableColumns);
             int row = index / columns;
             int column = index % columns;
-            int visibleRows = Mathf.Max(1, Mathf.CeilToInt(tableCapacity / (float)columns));
+            int visibleRows = Mathf.Max(1, Mathf.CeilToInt(Capacity / (float)columns));
             float startX = tableCenter.x - (columns - 1) * tableSlotSpacing.x * 0.5f;
             float startY = tableCenter.y + (visibleRows - 1) * tableSlotSpacing.y * 0.5f;
             Vector2 offset = tableSlotOffsets != null && index < tableSlotOffsets.Count ? tableSlotOffsets[index] : Vector2.zero;
@@ -438,7 +446,7 @@ namespace XueGao
             Gizmos.DrawWireCube(new Vector3(tableCenter.x, tableCenter.y, 0f), GetSafeTableSize());
 
             Vector2 slotSize = new Vector2(Mathf.Max(0.01f, tableSlotSize.x), Mathf.Max(0.01f, tableSlotSize.y));
-            int slotCount = Mathf.Max(0, tableCapacity);
+            int slotCount = Mathf.Max(0, Capacity);
             for (int i = 0; i < slotCount; i++)
             {
                 Vector3 slotPosition = GetSlotPosition(i);

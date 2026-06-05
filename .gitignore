@@ -32,3 +32,8 @@ Thumbs.db
 sysinfo.txt
 memorycapturedump.*
 crashlytics-build.properties
+
+Assets/Layer Lab/
+Assets/Sprite Shaders Ultimate/
+Assets/Layer Lab.meta
+Assets/Sprite Shaders Ultimate.meta

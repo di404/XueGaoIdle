@@ -20,6 +20,8 @@ namespace XueGao
         [SerializeField] private LotterySystem lottery;
         [SerializeField] private GameUI ui;
         [SerializeField] private JuicyFeedbacks feedbacks;
+        [SerializeField] private GameAudio gameAudio;
+        [SerializeField] private UpgradeManager upgradeManager;
         [SerializeField] private IceCreamStickDefinition defaultStickDefinition;
         [SerializeField] private float stickRevealDelay = 0.45f;
         [SerializeField] private float prizeRevealDelay = 0.65f;
@@ -32,12 +34,11 @@ namespace XueGao
         private IceCream activeIceCream;
         private int money;
         private int sticks;
-        private int mouthLevel = 1;
-        private int autoBiteLevel;
-        private int luckLevel;
         private float autoBiteTimer;
         private bool resolvingCompletion;
         private bool initialized;
+
+        public UpgradeManager Upgrades => upgradeManager;
 
         private void Awake()
         {
@@ -61,6 +62,23 @@ namespace XueGao
                 lottery = GetComponent<LotterySystem>();
             }
 
+            if (gameAudio == null)
+            {
+                gameAudio = GetComponentInChildren<GameAudio>(true);
+            }
+
+            if (upgradeManager == null)
+            {
+                upgradeManager = UpgradeManager.Instance;
+            }
+
+            if (upgradeManager == null)
+            {
+                throw new System.MissingFieldException("Missing UpgradeManager");
+            }
+
+            upgradeManager.Initialize();
+
             if (table == null)
             {
                 throw new System.MissingFieldException("Missing Table");
@@ -73,22 +91,22 @@ namespace XueGao
             }
 
             ui.BuildShop(iceCreams, BuyIceCream);
-            ui.MouthUpgradeButton.onClick.AddListener(UpgradeMouth);
-            ui.AutoBiteUpgradeButton.onClick.AddListener(UpgradeAutoBite);
-            ui.LuckUpgradeButton.onClick.AddListener(UpgradeLuck);
+            ui.BindUpgrades(upgradeManager, Upgrade);
             ui.PrizeContinueButton.onClick.AddListener(CompletePrizeReveal);
 
             eater.ProgressChanged += OnProgressChanged;
             eater.BiteApplied += OnBiteApplied;
             eater.Completed += OnIceCreamCompleted;
             mouth.SetEater(eater);
-            mouth.SetLevel(mouthLevel);
+            mouth.SetLevel(upgradeManager.MouthLevel);
             eater.SetMouth(mouth);
+            ApplyUpgradeEffects();
             eater.Clear();
             eater.InputEnabled = false;
             eater.gameObject.SetActive(false);
             SetState(GameState.Table);
             RefreshUI();
+            gameAudio?.PlayBgm();
             initialized = true;
         }
 
@@ -109,6 +127,7 @@ namespace XueGao
 
         private void Update()
         {
+            int autoBiteLevel = upgradeManager != null ? upgradeManager.AutoBiteLevel : 0;
             if (state == GameState.FocusedEating && !resolvingCompletion && autoBiteLevel > 0)
             {
                 autoBiteTimer += Time.deltaTime;
@@ -132,6 +151,7 @@ namespace XueGao
             if (table == null)
             {
                 ui.SetPrizeMessage("缺少桌面组件，无法生成雪糕。");
+                gameAudio?.PlayInvalid();
                 RefreshUI();
                 return;
             }
@@ -139,6 +159,7 @@ namespace XueGao
             if (table.Count >= table.Capacity)
             {
                 ui.SetPrizeMessage("桌子放满了，先吃掉几根雪糕。");
+                gameAudio?.PlayInvalid();
                 RefreshUI();
                 return;
             }
@@ -147,6 +168,7 @@ namespace XueGao
             if (money < definition.price)
             {
                 ui.SetPrizeMessage("钱不够，先吃几根雪糕碰碰运气。");
+                gameAudio?.PlayInvalid();
                 RefreshUI();
                 return;
             }
@@ -156,10 +178,12 @@ namespace XueGao
             {
                 money -= definition.price;
                 ui.SetPrizeMessage($"买了一根{definition.displayName}。");
+                gameAudio?.PlayBuy();
             }
             else if (!string.IsNullOrEmpty(failureMessage))
             {
                 ui.SetPrizeMessage(failureMessage);
+                gameAudio?.PlayInvalid();
             }
 
             RefreshUI();
@@ -208,6 +232,7 @@ namespace XueGao
             eater.BeginEating(activeIceCream, defaultStickDefinition);
             autoBiteTimer = 0f;
             ui.SetPrizeMessage("正在吃：" + (definition != null ? definition.displayName : "雪糕"));
+            gameAudio?.PlayFocus();
             SetState(GameState.FocusedEating);
             RefreshUI();
         }
@@ -219,7 +244,8 @@ namespace XueGao
 
         private void OnBiteApplied(Vector3 position)
         {
-            feedbacks.PlayBite();
+            feedbacks?.PlayBite();
+            gameAudio?.PlayBite();
         }
 
         private void OnIceCreamCompleted()
@@ -240,17 +266,19 @@ namespace XueGao
             RefreshUI();
 
             IceCreamDefinition definition = activeIceCream != null ? activeIceCream.CurrentDefinition : null;
-            PrizeResult result = lottery.Roll(definition != null ? definition.prizeMultiplier : 1, luckLevel);
+            PrizeResult result = lottery.Roll(definition != null ? definition.prizeMultiplier : 1, upgradeManager.LuckLevel);
             eater.RevealStick(result.StickDefinition);
-            feedbacks.PlayComplete();
+            feedbacks?.PlayComplete();
+            gameAudio?.PlayComplete();
             ui.SetPrizeMessage("雪糕吃完了，正在翻雪糕棍...");
             yield return new WaitForSeconds(stickRevealDelay);
 
             yield return new WaitForSeconds(prizeRevealDelay);
 
             int multiplier = definition != null ? definition.prizeMultiplier : 1;
-            money += result.FinalAmount;
-            string message = result.IsWin ? $"中奖！{result.Label} x{multiplier} = ￥{result.FinalAmount}" : "谢谢参与，下根再来";
+            int payout = upgradeManager.ApplyPrizeBonus(result.FinalAmount);
+            money += payout;
+            string message = result.IsWin ? BuildPrizeMessage(result, multiplier, payout) : "谢谢参与，下根再来";
             ui.SetPrizeMessage(message);
             ui.ShowPrizeModal(result.IsWin ? "中奖！" : "谢谢参与", message);
             history.Insert(0, message);
@@ -259,7 +287,8 @@ namespace XueGao
                 history.RemoveAt(history.Count - 1);
             }
 
-            feedbacks.PlayPrize(result.IsWin);
+            feedbacks?.PlayPrize(result.IsWin);
+            gameAudio?.PlayPrize(result.IsWin);
             RefreshUI();
         }
 
@@ -270,6 +299,7 @@ namespace XueGao
                 return;
             }
 
+            gameAudio?.PlayContinue();
             eater.HideStick();
             eater.EndEating();
             table.Remove(activeIceCream);
@@ -283,74 +313,45 @@ namespace XueGao
             RefreshUI();
         }
 
-        private void UpgradeMouth()
+        private void Upgrade(UpgradeType type)
         {
-            if (state == GameState.PrizeReveal)
+            if (!CanUseSideMenus())
             {
                 return;
             }
 
-            int cost = GetMouthCost();
-            if (money < cost)
+            if (!upgradeManager.TryPurchase(type, money, out int cost, out string message))
             {
-                return;
-            }
-
-            money -= cost;
-            mouthLevel++;
-            mouth.SetLevel(mouthLevel);
-            RefreshUI();
-        }
-
-        private void UpgradeAutoBite()
-        {
-            if (state == GameState.PrizeReveal)
-            {
-                return;
-            }
-
-            int cost = GetAutoBiteCost();
-            if (money < cost)
-            {
+                ui.SetPrizeMessage(message);
+                gameAudio?.PlayInvalid();
+                RefreshUI();
                 return;
             }
 
             money -= cost;
-            autoBiteLevel++;
+            ApplyUpgradeEffects();
+            ui.SetPrizeMessage(message);
+            gameAudio?.PlayUpgrade();
             RefreshUI();
         }
 
-        private void UpgradeLuck()
+        private void ApplyUpgradeEffects()
         {
-            if (state == GameState.PrizeReveal)
+            mouth.SetLevel(upgradeManager.MouthLevel);
+            if (table != null)
             {
-                return;
+                table.SetCapacityBonus(upgradeManager.TableCapacityBonus);
+            }
+        }
+
+        private string BuildPrizeMessage(PrizeResult result, int multiplier, int payout)
+        {
+            if (payout == result.FinalAmount)
+            {
+                return $"中奖！{result.Label} x{multiplier} = ￥{result.FinalAmount}";
             }
 
-            int cost = GetLuckCost();
-            if (money < cost)
-            {
-                return;
-            }
-
-            money -= cost;
-            luckLevel++;
-            RefreshUI();
-        }
-
-        private int GetMouthCost()
-        {
-            return Mathf.RoundToInt(20f * Mathf.Pow(1.8f, mouthLevel - 1));
-        }
-
-        private int GetAutoBiteCost()
-        {
-            return Mathf.RoundToInt(50f * Mathf.Pow(2f, autoBiteLevel));
-        }
-
-        private int GetLuckCost()
-        {
-            return Mathf.RoundToInt(80f * Mathf.Pow(1.9f, luckLevel));
+            return $"中奖！{result.Label} x{multiplier} = ￥{result.FinalAmount}，加成后￥{payout}";
         }
 
         private void RefreshUI()
@@ -360,9 +361,9 @@ namespace XueGao
             int multiplier = displayedDefinition != null ? displayedDefinition.prizeMultiplier : 1;
             int tableCount = table != null ? table.Count : 0;
             int tableCapacity = table != null ? table.Capacity : 0;
-            ui.SetStats(money, sticks, iceCreamName, multiplier, mouthLevel);
+            ui.SetStats(money, sticks, iceCreamName, multiplier, upgradeManager.MouthLevel);
             ui.SetHistory(history);
-            ui.SetUpgradeTexts(mouthLevel, GetMouthCost(), CanUseSideMenus() && money >= GetMouthCost(), autoBiteLevel, GetAutoBiteCost(), CanUseSideMenus() && money >= GetAutoBiteCost(), luckLevel, GetLuckCost(), CanUseSideMenus() && money >= GetLuckCost());
+            ui.RefreshUpgrades(upgradeManager, money, CanUseSideMenus());
             ui.RefreshShop(iceCreams, money, tableCount, tableCapacity, state == GameState.Table);
             ui.SetTableStatus(GetTableStatus());
         }
