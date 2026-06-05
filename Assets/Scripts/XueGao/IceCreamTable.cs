@@ -71,11 +71,13 @@ namespace XueGao
             }
 
             ScaleTableItem(iceCream.transform, definition != null ? definition.fullSprite : null);
-            iceCream.Clicked += OnIceCreamClicked;
-            iceCream.HoverChanged += OnIceCreamHoverChanged;
-            iceCream.Dragged += OnIceCreamDragged;
-            iceCream.InteractionEnabled = true;
-            iceCream.DragEnabled = true;
+            IceCreamDesktopInteraction interaction = RegisterInteraction(iceCream);
+            if (interaction != null)
+            {
+                interaction.InteractionEnabled = true;
+                interaction.DragEnabled = true;
+            }
+
             iceCream.RefreshCollider();
             iceCreams.Add(iceCream);
             return true;
@@ -88,9 +90,7 @@ namespace XueGao
                 return;
             }
 
-            iceCream.Clicked -= OnIceCreamClicked;
-            iceCream.HoverChanged -= OnIceCreamHoverChanged;
-            iceCream.Dragged -= OnIceCreamDragged;
+            UnregisterInteraction(iceCream);
             iceCreams.Remove(iceCream);
             Destroy(iceCream.gameObject);
         }
@@ -112,8 +112,7 @@ namespace XueGao
                 iceCream.gameObject.SetActive(true);
                 iceCream.SetAlpha(1f);
                 iceCream.SetSortingOrder(2 + i);
-                iceCream.InteractionEnabled = true;
-                iceCream.DragEnabled = true;
+                SetInteractionState(iceCream, true, true);
                 iceCream.RefreshCollider();
             }
         }
@@ -145,8 +144,7 @@ namespace XueGao
                     continue;
                 }
 
-                iceCream.InteractionEnabled = interactionEnabled;
-                iceCream.DragEnabled = dragEnabled;
+                SetInteractionState(iceCream, interactionEnabled, dragEnabled);
             }
         }
 
@@ -166,9 +164,7 @@ namespace XueGao
             {
                 if (iceCreams[i] != null)
                 {
-                    iceCreams[i].Clicked -= OnIceCreamClicked;
-                    iceCreams[i].HoverChanged -= OnIceCreamHoverChanged;
-                    iceCreams[i].Dragged -= OnIceCreamDragged;
+                    UnregisterInteraction(iceCreams[i]);
                 }
             }
 
@@ -310,6 +306,63 @@ namespace XueGao
             }
 
             iceCream.transform.position = clampedPosition;
+        }
+
+        private IceCreamDesktopInteraction RegisterInteraction(IceCream iceCream)
+        {
+            IceCreamDesktopInteraction interaction = EnsureInteraction(iceCream);
+            if (interaction == null)
+            {
+                return null;
+            }
+
+            interaction.Bind(iceCream, iceCream.Outline);
+            interaction.Clicked += OnIceCreamClicked;
+            interaction.HoverChanged += OnIceCreamHoverChanged;
+            interaction.Dragged += OnIceCreamDragged;
+            return interaction;
+        }
+
+        private void UnregisterInteraction(IceCream iceCream)
+        {
+            IceCreamDesktopInteraction interaction = iceCream != null ? iceCream.GetComponent<IceCreamDesktopInteraction>() : null;
+            if (interaction == null)
+            {
+                return;
+            }
+
+            interaction.Clicked -= OnIceCreamClicked;
+            interaction.HoverChanged -= OnIceCreamHoverChanged;
+            interaction.Dragged -= OnIceCreamDragged;
+        }
+
+        private void SetInteractionState(IceCream iceCream, bool interactionEnabled, bool dragEnabled)
+        {
+            IceCreamDesktopInteraction interaction = EnsureInteraction(iceCream);
+            if (interaction == null)
+            {
+                return;
+            }
+
+            interaction.InteractionEnabled = interactionEnabled;
+            interaction.DragEnabled = dragEnabled;
+        }
+
+        private IceCreamDesktopInteraction EnsureInteraction(IceCream iceCream)
+        {
+            if (iceCream == null)
+            {
+                return null;
+            }
+
+            IceCreamDesktopInteraction interaction = iceCream.GetComponent<IceCreamDesktopInteraction>();
+            if (interaction == null)
+            {
+                interaction = iceCream.gameObject.AddComponent<IceCreamDesktopInteraction>();
+                interaction.Bind(iceCream, iceCream.Outline);
+            }
+
+            return interaction;
         }
 
         private void OnDrawGizmosSelected()

@@ -136,6 +136,7 @@ GameObject:
   - component: {fileID: 5785161223262919934}
   - component: {fileID: 7979542273110913423}
   - component: {fileID: 8187993008065944742}
+  - component: {fileID: 3662284028736010192}
   m_Layer: 0
   m_Name: IceCream
   m_TagString: Untagged
@@ -241,15 +242,33 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 878ab81ccb800c44c817c7d936c06d00, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::XueGao.IceCreamFeelFeedbacks
+  m_EditorClassIdentifier: Assembly-CSharp::XueGao.IceCreamOutline
   outlineScale: 1.12
   outlineColor: {r: 0.18, g: 0.12, b: 0.22, a: 0.9}
   hoverOutlineColor: {r: 1, g: 0.85, b: 0, a: 1}
   hoverDuration: 0.08
-  clickScale: 1.12
-  clickDuration: 0.16
   iceCreamOutlineRenderer: {fileID: 2351604000731223034}
   stickOutlineRenderer: {fileID: 482882337552136400}
+--- !u!114 &3662284028736010192
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4736220914895638901}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ad23e50b97d84b4f9a1de32d8db4bda1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::XueGao.IceCreamDesktopInteraction
+  iceCream: {fileID: 5785161223262919934}
+  outline: {fileID: 8187993008065944742}
+  clickScale: 1.12
+  clickDuration: 0.16
+  dragMaxTiltAngle: 12
+  dragTiltSensitivity: 80
+  dragTiltSmoothSpeed: 18
+  dragReturnSmoothSpeed: 14
 --- !u!1 &5646880143415946048
 GameObject:
   m_ObjectHideFlags: 0

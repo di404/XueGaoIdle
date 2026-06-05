@@ -2,18 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace XueGao
 {
-    public class IceCream : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+    public class IceCream : MonoBehaviour
     {
         public event Action<float> ProgressChanged;
-        public event Action<IceCream> Clicked;
-        public event Action<IceCream, bool> HoverChanged;
-        public event Action<IceCream> DragStarted;
-        public event Action<IceCream, Vector3> Dragged;
-        public event Action<IceCream> DragEnded;
 
         [SerializeField] private SpriteRenderer iceCreamRenderer;
         [SerializeField] private SpriteRenderer stickRenderer;
@@ -38,10 +32,6 @@ namespace XueGao
         private int ediblePixelCount;
         private int eatenPixelCount;
         private bool completed;
-        private bool interactionEnabled = true;
-        private bool dragEnabled = true;
-        private bool isDragging;
-        private Vector3 dragOffset;
         private IceCreamDefinition currentDefinition;
         private IceCreamStickDefinition currentStickDefinition;
         private BoxCollider2D boxCollider;
@@ -50,24 +40,8 @@ namespace XueGao
         public float Progress => ediblePixelCount <= 0 ? 0f : eatenPixelCount / (float)ediblePixelCount;
         public IceCreamDefinition CurrentDefinition => currentDefinition;
         public IceCreamStickDefinition CurrentStickDefinition => currentStickDefinition;
-        public bool InteractionEnabled
-        {
-            get => interactionEnabled;
-            set
-            {
-                interactionEnabled = value;
-                if (!interactionEnabled)
-                {
-                    isDragging = false;
-                }
-            }
-        }
-
-        public bool DragEnabled
-        {
-            get => dragEnabled;
-            set => dragEnabled = value;
-        }
+        public IceCreamOutline Outline => ResolveOutline();
+        public Transform VisualRoot => Outline != null && Outline.VisualRoot != null ? Outline.VisualRoot : transform;
 
         private void Awake()
         {
@@ -265,16 +239,12 @@ namespace XueGao
         }
         public void SetOutlineVisible(bool visible)
         {
-            if (outline == null)
-            {
-                outline = GetComponentInChildren<IceCreamOutline>(true);
-            }
+            ResolveOutline()?.SetVisible(visible);
+        }
 
-            outline?.SetVisible(visible);
-            if (!visible)
-            {
-                outline?.SetDefaultColor();
-            }
+        public void SetOutlineHovered(bool isHovered)
+        {
+            ResolveOutline()?.SetHovered(isHovered);
         }
 
         public void SetAlpha(float alpha)
@@ -334,68 +304,6 @@ namespace XueGao
             boxCollider.size = max - min;
             boxCollider.isTrigger = true;
             boxCollider.enabled = true;
-        }
-
-        public void OnPointerEnter(PointerEventData eventData)
-        {
-            if (interactionEnabled)
-            {
-                outline.SetHoverColor();
-                HoverChanged?.Invoke(this, true);
-            }
-        }
-
-        public void OnPointerExit(PointerEventData eventData)
-        {
-            if (interactionEnabled)
-            {
-                outline.SetDefaultColor();
-                HoverChanged?.Invoke(this, false);
-            }
-        }
-
-        public void OnPointerClick(PointerEventData eventData)
-        {
-            if (interactionEnabled && !isDragging)
-            {
-                Clicked?.Invoke(this);
-            }
-        }
-
-        public void OnBeginDrag(PointerEventData eventData)
-        {
-            if (!interactionEnabled || !dragEnabled || !TryGetEventWorldPosition(eventData, out Vector3 worldPosition))
-            {
-                return;
-            }
-
-            isDragging = true;
-            dragOffset = transform.position - worldPosition;
-            DragStarted?.Invoke(this);
-        }
-
-        public void OnDrag(PointerEventData eventData)
-        {
-            if (!isDragging || !TryGetEventWorldPosition(eventData, out Vector3 worldPosition))
-            {
-                return;
-            }
-
-            Vector3 targetPosition = worldPosition + dragOffset;
-            targetPosition.z = transform.position.z;
-            transform.position = targetPosition;
-            Dragged?.Invoke(this, targetPosition);
-        }
-
-        public void OnEndDrag(PointerEventData eventData)
-        {
-            if (!isDragging)
-            {
-                return;
-            }
-
-            isDragging = false;
-            DragEnded?.Invoke(this);
         }
 
         private int CountBiteablePixels(Vector3 worldPosition, float radiusWorld, out Vector3 localPosition)
@@ -976,12 +884,17 @@ namespace XueGao
 
         private void InitOutline()
         {
+            ResolveOutline()?.Initialize(iceCreamRenderer, stickRenderer);
+        }
+
+        private IceCreamOutline ResolveOutline()
+        {
             if (outline == null)
             {
                 outline = GetComponentInChildren<IceCreamOutline>(true);
             }
 
-            outline.Initialize(iceCreamRenderer, stickRenderer);
+            return outline;
         }
 
         private void SetIceCreamSprite(Sprite sprite, bool visible)
@@ -1028,26 +941,6 @@ namespace XueGao
         {
             value = 1f - Mathf.Clamp01(value);
             return 1f - value * value * value;
-        }
-
-        private static bool TryGetEventWorldPosition(PointerEventData eventData, out Vector3 worldPosition)
-        {
-            Camera eventCamera = eventData != null ? eventData.pressEventCamera : null;
-            if (eventCamera == null)
-            {
-                eventCamera = Camera.main;
-            }
-
-            if (eventCamera == null || eventData == null)
-            {
-                worldPosition = Vector3.zero;
-                return false;
-            }
-
-            Vector3 screenPosition = new Vector3(eventData.position.x, eventData.position.y, -eventCamera.transform.position.z);
-            worldPosition = eventCamera.ScreenToWorldPoint(screenPosition);
-            worldPosition.z = 0f;
-            return true;
         }
 
         public readonly struct BiteResult

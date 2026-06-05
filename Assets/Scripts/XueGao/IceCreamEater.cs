@@ -66,8 +66,13 @@ namespace XueGao
             currentIceCream.gameObject.SetActive(true);
             currentIceCream.SetAlpha(1f);
             currentIceCream.SetSortingOrder(focusedSortingOrder);
-            currentIceCream.InteractionEnabled = false;
-            currentIceCream.DragEnabled = false;
+            IceCreamDesktopInteraction interaction = currentIceCream.GetComponent<IceCreamDesktopInteraction>();
+            if (interaction != null)
+            {
+                interaction.InteractionEnabled = false;
+                interaction.DragEnabled = false;
+            }
+
             currentIceCream.LoadForEating(stickDefinition);
             currentIceCream.SetOutlineVisible(false);
             ProgressChanged?.Invoke(Progress);
