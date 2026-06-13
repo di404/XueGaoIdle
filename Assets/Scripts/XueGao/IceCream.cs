@@ -173,6 +173,42 @@ namespace XueGao
             return CountBiteablePixels(worldPosition, radiusWorld, out _) > 0;
         }
 
+        public bool TryGetRandomBitePoint(float radiusWorld, out Vector3 worldPosition)
+        {
+            worldPosition = Vector3.zero;
+            if (completed || runtimeTexture == null || iceCreamRenderer == null || iceCreamRenderer.sprite == null || ediblePixels == null || eatenPixels == null)
+            {
+                return false;
+            }
+
+            int pixelCount = ediblePixels.Length;
+            if (pixelCount == 0)
+            {
+                return false;
+            }
+
+            int startIndex = UnityEngine.Random.Range(0, pixelCount);
+            for (int i = 0; i < pixelCount; i++)
+            {
+                int pixelIndex = (startIndex + i) % pixelCount;
+                if (!ediblePixels[pixelIndex] || eatenPixels[pixelIndex])
+                {
+                    continue;
+                }
+
+                Vector3 candidate = GetPixelWorldPosition(pixelIndex);
+                if (!CanBite(candidate, radiusWorld))
+                {
+                    continue;
+                }
+
+                worldPosition = candidate;
+                return true;
+            }
+
+            return false;
+        }
+
         public bool ContainsSpritePoint(Vector3 worldPosition)
         {
             if (iceCreamRenderer == null || iceCreamRenderer.sprite == null || !iceCreamRenderer.gameObject.activeInHierarchy)
@@ -338,6 +374,17 @@ namespace XueGao
             }
 
             return count;
+        }
+
+        private Vector3 GetPixelWorldPosition(int pixelIndex)
+        {
+            int x = pixelIndex % runtimeTexture.width;
+            int y = pixelIndex / runtimeTexture.width;
+            Sprite sprite = iceCreamRenderer.sprite;
+            Vector2 pivot = sprite.pivot;
+            float pixelsPerUnit = sprite.pixelsPerUnit;
+            Vector3 localPosition = new Vector3((x + 0.5f - pivot.x) / pixelsPerUnit, (y + 0.5f - pivot.y) / pixelsPerUnit, 0f);
+            return iceCreamRenderer.transform.TransformPoint(localPosition);
         }
 
         private void OnDrawGizmosSelected()

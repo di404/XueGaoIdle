@@ -1,0 +1,27 @@
+#!/bin/bash
+set -e
+
+# FastMCP checks PyPI while printing the startup banner. On machines with a
+# SOCKS all_proxy this requires httpx[socks], which MCPForUnity's uvx env does
+# not install. Disable that nonessential check for Unity MCP launches.
+export FASTMCP_CHECK_FOR_UPDATES="${FASTMCP_CHECK_FOR_UPDATES:-off}"
+
+# Keep local Unity/MCP HTTP traffic out of any system proxy.
+export NO_PROXY="127.0.0.1,localhost,::1${NO_PROXY:+,$NO_PROXY}"
+export no_proxy="127.0.0.1,localhost,::1${no_proxy:+,$no_proxy}"
+
+# Avoid httpx trying to construct a SOCKS proxy transport without socksio.
+unset all_proxy
+unset ALL_PROXY
+
+real_uvx="${MCPFORUNITY_REAL_UVX:-/Users/fuyingdi/.local/bin/uvx}"
+if [ ! -x "$real_uvx" ]; then
+    real_uvx="$(command -v uvx || true)"
+fi
+
+if [ -z "$real_uvx" ] || [ ! -x "$real_uvx" ]; then
+    echo "uvx executable not found. Set MCPFORUNITY_REAL_UVX or install uv." >&2
+    exit 127
+fi
+
+exec "$real_uvx" "$@"

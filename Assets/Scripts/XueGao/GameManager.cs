@@ -128,15 +128,24 @@ namespace XueGao
         private void Update()
         {
             int autoBiteLevel = upgradeManager != null ? upgradeManager.AutoBiteLevel : 0;
-            if (state == GameState.FocusedEating && !resolvingCompletion && autoBiteLevel > 0)
+            if (state == GameState.FocusedEating && !resolvingCompletion && autoBiteLevel > 0 && eater != null && mouth != null)
             {
                 autoBiteTimer += Time.deltaTime;
                 float interval = Mathf.Max(0.18f, 1f / autoBiteLevel);
                 while (autoBiteTimer >= interval)
                 {
                     autoBiteTimer -= interval;
-                    Vector3 point = eater.transform.position + new Vector3(Random.Range(-0.8f, 0.8f), Random.Range(-1.0f, 0.9f), 0f);
-                    eater.TryBite(point, mouth.BiteRadiusWorld * 0.7f);
+                    float radius = mouth.BiteRadiusWorld * 0.7f;
+                    if (!eater.TryGetRandomBitePoint(radius, out Vector3 point))
+                    {
+                        autoBiteTimer = 0f;
+                        break;
+                    }
+
+                    if (eater.TryBite(point, radius))
+                    {
+                        mouth.PlayBiteAnimation();
+                    }
                 }
             }
         }

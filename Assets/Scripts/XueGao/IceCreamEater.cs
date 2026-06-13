@@ -125,6 +125,12 @@ namespace XueGao
             return !completed && currentIceCream != null && currentIceCream.CanBite(worldPosition, radiusWorld);
         }
 
+        public bool TryGetRandomBitePoint(float radiusWorld, out Vector3 worldPosition)
+        {
+            worldPosition = Vector3.zero;
+            return !completed && currentIceCream != null && currentIceCream.TryGetRandomBitePoint(radiusWorld, out worldPosition);
+        }
+
         public bool ContainsIceCreamSpritePoint(Vector3 worldPosition)
         {
             return currentIceCream != null && currentIceCream.ContainsSpritePoint(worldPosition);
